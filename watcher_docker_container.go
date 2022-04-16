@@ -128,7 +128,7 @@ func Scan(ctx context.Context, watcherID WatcherID, source Source, params WatchP
 		message := Message{
 			Timestamp: timestamp,
 			Fields: map[string]string{
-				"message": split[1],
+				"MESSAGE": split[1],
 			},
 			Source:    source,
 			WatcherID: watcherID,

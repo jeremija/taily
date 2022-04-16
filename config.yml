@@ -1,0 +1,7 @@
+---
+persister:
+  name: noop
+watchers:
+  - name: journald
+    processors:
+      - name: log

@@ -12,7 +12,7 @@ func NewProcessorLog() *ProcessorLog {
 }
 
 func (p ProcessorLog) ProcessMessage(message Message) error {
-	fmt.Fprintf(os.Stdout, "%s %s %s", message.Timestamp, message.WatcherID, message.Fields["message"])
+	fmt.Fprintf(os.Stdout, "%s %s %s\n", message.Timestamp, message.WatcherID, message.Fields)
 
 	return nil
 }

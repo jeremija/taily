@@ -94,7 +94,7 @@ func (d *Journald) Watch(ctx context.Context, params WatchParams) error {
 		}
 
 		message := Message{
-			Timestamp: time.UnixMicro(int64(entry.MonotonicTimestamp)).UTC(),
+			Timestamp: time.UnixMicro(int64(entry.RealtimeTimestamp)).UTC(),
 			Cursor:    entry.Cursor,
 			Fields:    entry.Fields,
 			WatcherID: d.params.WatcherID,

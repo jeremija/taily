@@ -53,7 +53,7 @@ func NewConfigFromString(str string) (*Config, error) {
 
 type WatcherConfig struct {
 	Name       WatcherName       `yaml:"name"`
-	Processors []ProcessorConfig `yaml:"processor"`
+	Processors []ProcessorConfig `yaml:"processors"`
 }
 
 type ProcessorConfig struct {
