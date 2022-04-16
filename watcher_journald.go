@@ -49,6 +49,14 @@ func (d *Journald) Watch(ctx context.Context, params WatchParams) error {
 				"cursor": cursor,
 			})
 		}
+	} else if ts := state.Timestamp; !ts.IsZero() {
+		usec := uint64(ts.UnixMicro())
+
+		if err := d.params.Journal.SeekRealtimeUsec(usec); err != nil {
+			d.params.Logger.Error("Failed to seek cursor", err, log.Ctx{
+				"cursor": cursor,
+			})
+		}
 	}
 
 	waitForChange := func(ctx context.Context) error {

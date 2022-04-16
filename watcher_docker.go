@@ -75,6 +75,7 @@ func (d *Docker) Watch(ctx context.Context, params WatchParams) error {
 	}
 
 	type containerWithDone struct {
+		// cancel context.CancelFunc()
 		done      <-chan struct{}
 		container *DockerContainer
 	}
@@ -82,6 +83,10 @@ func (d *Docker) Watch(ctx context.Context, params WatchParams) error {
 	dockerContainers := map[string]*containerWithDone{}
 
 	watchContainer := func(containerID string) {
+		if _, ok := dockerContainers[containerID]; ok {
+			return
+		}
+
 		dcDaemonID := d.params.WatcherID + WatcherID(":"+containerID)
 
 		daemonParams := d.params.WatcherParams
@@ -93,8 +98,13 @@ func (d *Docker) Watch(ctx context.Context, params WatchParams) error {
 			ContainerID:   containerID,
 		}
 
+		logger := d.params.Logger.WithCtx(log.Ctx{
+			"container_id": containerID,
+		})
+
 		dc := NewDockerContainer(dockerContainerParams)
 
+		// ctx2, cancel2 := context.WithCancel(ctx)
 		done := make(chan struct{})
 
 		prevContainer := dockerContainers[containerID]
@@ -108,12 +118,12 @@ func (d *Docker) Watch(ctx context.Context, params WatchParams) error {
 			defer close(done)
 
 			if prevContainer != nil {
-				d.params.Logger.Info("Waiting for previous container to terminate", nil)
+				logger.Info("Waiting for previous container to terminate", nil)
 
 				select {
 				case <-prevContainer.done:
 				case <-ctx.Done():
-					d.params.Logger.Error("Context canceled", ctx.Err(), nil)
+					logger.Error("Context canceled", ctx.Err(), nil)
 					return
 				}
 			}
@@ -126,20 +136,22 @@ func (d *Docker) Watch(ctx context.Context, params WatchParams) error {
 			dw := NewDaemonWatcher(dwParams)
 
 			go func() {
-				if err := dw.WatchDaemon(ctx, params.Ch); err != nil {
-					d.params.Logger.Error("Watch failed", err, nil)
+				logger.Info("Watching", nil)
+
+				if err := dw.WatchDaemon(ctx, d.params.Logger, params.Ch); err != nil {
+					logger.Error("Watch failed", err, nil)
 
 					return
 				}
 
-				d.params.Logger.Info("Watch done", nil)
+				logger.Info("Watch done", nil)
 			}()
 		}()
 	}
 
-	removeContainer := func(containerID string) {
-		delete(dockerContainers, containerID)
-	}
+	// removeContainer := func(containerID string) {
+	// 	delete(dockerContainers, containerID)
+	// }
 
 	for _, container := range containers {
 		watchContainer(container.ID)
@@ -174,8 +186,8 @@ func (d *Docker) Watch(ctx context.Context, params WatchParams) error {
 				watchContainer(containerID)
 
 			case "stop":
-				containerID := ev.Actor.ID
-				removeContainer(containerID)
+				// containerID := ev.Actor.ID
+				// removeContainer(containerID)
 
 			default:
 				return errors.Errorf("unexpected action: %q", ev.Action)

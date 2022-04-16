@@ -1,7 +1,12 @@
 ---
 persister:
-  name: noop
+  name: file
+  file:
+    dir: ./state/
 watchers:
-  - name: journald
+  # - name: journald
+  #   processors:
+  #     - name: log
+  - name: docker
     processors:
       - name: log

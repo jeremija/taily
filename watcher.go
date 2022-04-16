@@ -50,7 +50,7 @@ func NewDaemonWatcher(params DaemonWatcherParams) *DaemonWatcher {
 	}
 }
 
-func (dw *DaemonWatcher) WatchDaemon(ctx context.Context, ch chan<- Message) error {
+func (dw *DaemonWatcher) WatchDaemon(ctx context.Context, logger log.Logger, ch chan<- Message) error {
 	defer close(ch)
 
 	watcherID := dw.params.Watcher.WatcherID()
@@ -78,13 +78,40 @@ func (dw *DaemonWatcher) WatchDaemon(ctx context.Context, ch chan<- Message) err
 		ctx2, cancel2 := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel2()
 
-		dw.params.Persister.SaveState(ctx2, watcherID, state)
+		if err := dw.params.Persister.SaveState(ctx2, watcherID, state); err != nil {
+			logger.Error("Saving state", err, nil)
+		}
 	}()
+
+	count := 0
+
+	// Ignore old messages.
+	if state.SameTimestamp > 0 {
+	loop:
+		for msg := range localCh {
+			if msg.Timestamp.Equal(state.Timestamp) {
+				count++
+
+				if count < state.SameTimestamp {
+					continue
+				}
+			}
+
+			state = state.WithTimestamp(msg.Timestamp).WithCursor(msg.Cursor)
+
+			select {
+			case ch <- msg:
+				break loop
+			case <-ctx.Done():
+				return errors.Trace(err)
+			}
+		}
+	}
 
 	for msg := range localCh {
 		select {
 		case ch <- msg:
-			state = state.WithTimestamp(msg.Timestamp)
+			state = state.WithTimestamp(msg.Timestamp).WithCursor(msg.Cursor)
 		case <-ctx.Done():
 			return errors.Trace(err)
 		}

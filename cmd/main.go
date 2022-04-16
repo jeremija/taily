@@ -59,7 +59,7 @@ func main2(argv []string) error {
 			ch := make(chan guardlog.Message)
 
 			go func() {
-				errCh <- errors.Trace(dw.WatchDaemon(ctx, ch))
+				errCh <- errors.Trace(dw.WatchDaemon(ctx, logger, ch))
 			}()
 
 			for message := range ch {

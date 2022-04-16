@@ -61,7 +61,12 @@ type ProcessorConfig struct {
 }
 
 type PersisterConfig struct {
-	Name string `yaml:"name"`
+	Name string              `yaml:"name"`
+	File PersisterFileConfig `yaml:"file"`
+}
+
+type PersisterFileConfig struct {
+	Dir string `yaml:"dir"`
 }
 
 func NewProcessorsFromConfig(configs []ProcessorConfig) (Processors, error) {
@@ -90,7 +95,9 @@ func NewProcessorFromConfig(config ProcessorConfig) (Processor, error) {
 func NewPersisterFromConfig(config PersisterConfig) (Persister, error) {
 	switch config.Name {
 	case "noop":
-		return NoopPersister{}, nil
+		return NewPersisterNoop(), nil
+	case "file":
+		return NewPersisterFile(config.File.Dir), nil
 	default:
 		return nil, errors.Errorf("unknown persister: %q", config.Name)
 	}
