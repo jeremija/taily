@@ -80,15 +80,22 @@ func main2(argv []string) error {
 		}()
 	}
 
-	var firstErr error
+	numErrors := 0
 
 	for i := 0; i < len(config.Watchers); i++ {
-		err := <-errCh
-
-		if firstErr == nil && err != nil {
-			firstErr = errors.Trace(err)
+		if err := <-errCh; err != nil {
+			if taily.IsError(err, context.Canceled) {
+				logger.Info("Watcher complete", nil)
+			} else {
+				numErrors++
+				logger.Error("Watcher failed", err, nil)
+			}
 		}
 	}
 
-	return errors.Trace(firstErr)
+	if numErrors > 0 {
+		return errors.Errorf("errors encountered: %d", numErrors)
+	}
+
+	return nil
 }

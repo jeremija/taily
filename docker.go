@@ -161,10 +161,10 @@ func (d *Docker) ReadLogs(ctx context.Context, params ReadLogsParams) error {
 
 			dw := NewWatcher(dwParams)
 
-			logger.Info("Watching", nil)
-
 			if err := dw.Watch(ctx, params.Ch); err != nil {
-				logger.Error("Watch failed", err, nil)
+				if !IsError(err, context.Canceled) {
+					logger.Error("Watch failed", err, nil)
+				}
 
 				return
 			}

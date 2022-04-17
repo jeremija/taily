@@ -132,8 +132,6 @@ func (d *DockerContainer) ReadLogs(ctx context.Context, params ReadLogsParams) e
 
 	for i := 0; i < cap(errCh); i++ {
 		if err := <-errCh; err != nil {
-			d.params.Logger.Error("Read error", err, nil)
-
 			if retErr == nil {
 				retErr = errors.Trace(err)
 			}
@@ -184,7 +182,7 @@ func ScanDockerContainerLogs(ctx context.Context, params ScanDockerContainerLogs
 
 	err := scanner.Err()
 
-	if !isError(err, io.ErrClosedPipe) {
+	if !IsError(err, io.ErrClosedPipe) {
 		return errors.Trace(err)
 	}
 

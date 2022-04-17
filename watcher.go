@@ -110,7 +110,7 @@ func (dw *Watcher) persistState(state State) {
 // Watch loads the state and invokes the Reader.ReadLogs. It persists the state
 // after the reading is done. The ch will be closed after reading is complete
 // only if WatcherParams.NoClose is false.
-func (dw *Watcher) Watch(ctx context.Context, ch chan<- Message) error {
+func (dw *Watcher) Watch(ctx context.Context, ch chan<- Message) (err error) {
 	if !dw.params.NoClose {
 		defer close(ch)
 	}
