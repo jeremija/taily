@@ -29,14 +29,14 @@ func NewFile(dir string) *File {
 // Assert that File implements types.Persister.
 var _ types.Persister = File{}
 
-// filename returns a filename for watcherID.
-func (p File) filename(watcherID types.ReaderID) string {
-	return path.Join(p.dir, string(watcherID)+".json")
+// filename returns a filename for readerID.
+func (p File) filename(readerID types.ReaderID) string {
+	return path.Join(p.dir, string(readerID)+".json")
 }
 
 // LoadState implements Persister.
-func (p File) LoadState(ctx context.Context, watcherID types.ReaderID) (types.State, error) {
-	f, err := os.Open(p.filename(watcherID))
+func (p File) LoadState(ctx context.Context, readerID types.ReaderID) (types.State, error) {
+	f, err := os.Open(p.filename(readerID))
 	if err != nil {
 		if os.IsNotExist(err) {
 			return types.State{}, nil
@@ -57,7 +57,7 @@ func (p File) LoadState(ctx context.Context, watcherID types.ReaderID) (types.St
 }
 
 // SaveState implements Persister.
-func (p File) SaveState(ctx context.Context, watcherID types.ReaderID, state types.State) error {
+func (p File) SaveState(ctx context.Context, readerID types.ReaderID, state types.State) error {
 	if err := os.MkdirAll(p.dir, 0755); err != nil {
 		return errors.Trace(err)
 	}
@@ -71,8 +71,8 @@ func (p File) SaveState(ctx context.Context, watcherID types.ReaderID, state typ
 	// We store to a tmp filename first so we don't lose the old state in case we
 	// fail to write it. After a successful write, we rename the tmp file to a
 	// new one.
-	filename := p.filename(watcherID)
-	tmpFilename := p.filename(watcherID) + ".tmp" + hex.EncodeToString(tmp)
+	filename := p.filename(readerID)
+	tmpFilename := p.filename(readerID) + ".tmp" + hex.EncodeToString(tmp)
 
 	f, err := os.OpenFile(tmpFilename, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0666)
 	if err != nil {

@@ -17,12 +17,14 @@ processors:
         type: any
         # type: substring
         # substring: container
-watchers:
-  - type: journald
+readers:
+  - id: journald
+    type: journald
     processors:
       - proc_log
     initial_state:
       timestamp: "2022-04-01T00:00:00Z"
-  - type: docker
+  - id: docker
+    type: docker
     processors:
       - proc_log

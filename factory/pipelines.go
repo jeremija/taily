@@ -3,6 +3,7 @@ package factory
 import (
 	"github.com/jeremija/taily/config"
 	"github.com/jeremija/taily/pipeline"
+	"github.com/jeremija/taily/types"
 	"github.com/jeremija/taily/watcher"
 	"github.com/juju/errors"
 	"github.com/peer-calls/log"
@@ -24,11 +25,21 @@ func NewPipelines(logger log.Logger, cfg *config.Config) ([]*pipeline.Pipeline, 
 		return nil, errors.Trace(err)
 	}
 
-	ret := make([]*pipeline.Pipeline, len(cfg.Watchers))
+	ret := make([]*pipeline.Pipeline, len(cfg.Readers))
 
 	// errCh := make(chan error, len(cfg.Watchers))
 
-	for i, config := range cfg.Watchers {
+	readerIDs := make(map[types.ReaderID]struct{}, len(cfg.Readers))
+
+	for i, config := range cfg.Readers {
+		readerID := config.ReaderID()
+
+		if _, ok := readerIDs[readerID]; ok {
+			return nil, errors.Errorf("duplicate reader ID: %q", readerID)
+		}
+
+		readerIDs[readerID] = struct{}{}
+
 		newProcessor, err := NewProcessorsFromMap(processorsMap, config.Processors)
 		if err != nil {
 			return nil, errors.Trace(err)

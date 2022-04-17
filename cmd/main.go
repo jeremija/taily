@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
-	"sync"
 	"syscall"
 
 	"github.com/jeremija/taily/config"
@@ -38,21 +37,16 @@ func main2(argv []string) error {
 		return errors.Trace(err)
 	}
 
-	var wg sync.WaitGroup
-
-	defer wg.Wait()
-
-	wg.Add(1)
-
 	go func() {
-		defer wg.Done()
-
 		<-ctx.Done()
 
 		logger.Info("Tearing down", nil)
 	}()
 
 	pipelines, err := factory.NewPipelines(logger, cfg)
+	if err != nil {
+		return errors.Trace(err)
+	}
 
 	errCh := make(chan error, len(pipelines))
 

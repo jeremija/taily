@@ -20,12 +20,12 @@ func NewNoop() Noop {
 }
 
 // LoadState implements Persister.
-func (n Noop) LoadState(ctx context.Context, watcherID types.ReaderID) (types.State, error) {
+func (n Noop) LoadState(ctx context.Context, readerID types.ReaderID) (types.State, error) {
 	return types.State{}, nil
 }
 
 // SaveState implements Persister.
-func (n Noop) SaveState(ctx context.Context, watcherID types.ReaderID, state types.State) error {
-	fmt.Println("SaveState", watcherID, state)
+func (n Noop) SaveState(ctx context.Context, readerID types.ReaderID, state types.State) error {
+	fmt.Println("SaveState", readerID, state)
 	return nil
 }

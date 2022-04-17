@@ -82,7 +82,7 @@ func (d *DockerContainer) ReadLogs(ctx context.Context, params types.ReadLogsPar
 
 	var stdout, stderr io.Reader
 
-	watcherID := d.params.ReaderID
+	readerID := d.params.ReaderID
 	stdout = reader
 	errCh := make(chan error, 2)
 
@@ -107,7 +107,7 @@ func (d *DockerContainer) ReadLogs(ctx context.Context, params types.ReadLogsPar
 
 	go func() {
 		p := ScanDockerContainerLogsParams{
-			WatcherID:      watcherID,
+			WatcherID:      readerID,
 			ContainerID:    containerID,
 			Source:         types.SourceStdout,
 			ReadLogsParams: params,
@@ -119,7 +119,7 @@ func (d *DockerContainer) ReadLogs(ctx context.Context, params types.ReadLogsPar
 
 	go func() {
 		p := ScanDockerContainerLogsParams{
-			WatcherID:      watcherID,
+			WatcherID:      readerID,
 			ContainerID:    containerID,
 			Source:         types.SourceStderr,
 			ReadLogsParams: params,

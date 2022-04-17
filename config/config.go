@@ -4,17 +4,26 @@ import "github.com/jeremija/taily/types"
 
 // Config describes the main YAML config file.
 type Config struct {
-	Watchers   []Watcher            `yaml:"watchers"`
+	Readers    []Reader             `yaml:"readers"`
 	Actions    map[string]Action    `yaml:"actions"`
 	Processors map[string]Processor `yaml:"processors"`
 	Persister  Persister            `yaml:"persister"`
 }
 
-// Watcher contains configuration for a specific watcher.
-type Watcher struct {
-	Type         string      `yaml:"type"`
-	Processors   []string    `yaml:"processors"`
-	InitialState types.State `yaml:"initial_state"`
+// Reader contains configuration for a specific watcher.
+type Reader struct {
+	ID           types.ReaderID `yaml:"id"`
+	Type         string         `yaml:"type"`
+	Processors   []string       `yaml:"processors"`
+	InitialState types.State    `yaml:"initial_state"`
+}
+
+func (r Reader) ReaderID() types.ReaderID {
+	if r.ID != "" {
+		return r.ID
+	}
+
+	return types.ReaderID(r.Type)
 }
 
 // Processor contains configuration for a specific processor.

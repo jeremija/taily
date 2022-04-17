@@ -214,10 +214,10 @@ func NewReaderFromConfig(
 	logger log.Logger,
 	persister types.Persister,
 	newProcessor processor.Factory,
-	cfg config.Watcher,
+	cfg config.Reader,
 ) (types.Reader, error) {
 	watcherParams := types.ReaderParams{
-		ReaderID: types.ReaderID(cfg.Type),
+		ReaderID: cfg.ReaderID(),
 		Logger:   logger,
 	}
 
