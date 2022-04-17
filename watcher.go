@@ -23,10 +23,11 @@ func NewWatcher(params WatcherParams) *Watcher {
 
 // WatcherParams contains parameters for NewWatcher.
 type WatcherParams struct {
-	Persister Persister  // Persister to load and store state with.
-	Reader    Reader     // Reader to read logs from.
-	Logger    log.Logger // Logger to use.
-	NoClose   bool       //NoClose will prevent Watch from closing ch on exit.
+	Persister    Persister  // Persister to load and store state with.
+	Reader       Reader     // Reader to read logs from.
+	Logger       log.Logger // Logger to use.
+	NoClose      bool       //NoClose will prevent Watch from closing ch on exit.
+	InitialState State
 }
 
 // watch calls ReadLogs and prevents duplicate messages from being read.
@@ -123,6 +124,10 @@ func (dw *Watcher) Watch(ctx context.Context, ch chan<- Message) error {
 	state, err := dw.params.Persister.LoadState(ctx, readerID)
 	if err != nil {
 		return errors.Trace(err)
+	}
+
+	if state == (State{}) {
+		state = dw.params.InitialState
 	}
 
 	logger.Info("Loaded state", log.Ctx{

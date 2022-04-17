@@ -35,10 +35,15 @@ func main2(argv []string) error {
 		return errors.Trace(err)
 	}
 
+	processorsMap, err := guardlog.NewProcessorsMap(config.Processors)
+	if err != nil {
+		return errors.Trace(err)
+	}
+
 	errCh := make(chan error, len(config.Watchers))
 
 	for _, config := range config.Watchers {
-		processor, err := guardlog.NewProcessorsFromConfig(config.Processors)
+		processor, err := guardlog.NewProcessorsFromMap(processorsMap, config.Processors)
 		if err != nil {
 			errCh <- errors.Trace(err)
 			continue
@@ -51,9 +56,10 @@ func main2(argv []string) error {
 		}
 
 		dw := guardlog.NewWatcher(guardlog.WatcherParams{
-			Persister: persister,
-			Reader:    watcher,
-			Logger:    logger,
+			Persister:    persister,
+			Reader:       watcher,
+			Logger:       logger,
+			InitialState: config.InitialState,
 		})
 
 		go func() {

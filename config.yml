@@ -3,12 +3,17 @@ persister:
   name: file
   file:
     dir: ./state/
+processors:
+  proc_log:
+    name: log
+    log:
+      format: json
 watchers:
-  # - name: journald
-  #   processors:
-  #     - name: log
+  - name: journald
+    processors:
+      - proc_log
+    initial_state:
+      timestamp: "2022-04-01T00:00:00Z"
   - name: docker
     processors:
-      - name: log
-        log:
-          format: json
+      - proc_log

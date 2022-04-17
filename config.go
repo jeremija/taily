@@ -13,8 +13,9 @@ import (
 
 // Config describes the main YAML config file.
 type Config struct {
-	Watchers  []WatcherConfig `yaml:"watchers"`
-	Persister PersisterConfig `yaml:"persister"`
+	Watchers   []WatcherConfig            `yaml:"watchers"`
+	Processors map[string]ProcessorConfig `yaml:"processors"`
+	Persister  PersisterConfig            `yaml:"persister"`
 }
 
 // NewConfigFromFile opens the filename and tries to decode the config YAML.
@@ -58,8 +59,9 @@ func NewConfigFromString(str string) (*Config, error) {
 
 // WatcherConfig contains configuration for a specific watcher.
 type WatcherConfig struct {
-	Name       ReaderName        `yaml:"name"`
-	Processors []ProcessorConfig `yaml:"processors"`
+	Name         ReaderName `yaml:"name"`
+	Processors   []string   `yaml:"processors"`
+	InitialState State      `yaml:"initial_state"`
 }
 
 // ProcessorConfig contains configuration for a specific processor.
@@ -84,16 +86,32 @@ type PersisterFileConfig struct {
 	Dir string `yaml:"dir"`
 }
 
-// NewProcessorsFromConfig reads configs and creates Processors.
-func NewProcessorsFromConfig(configs []ProcessorConfig) (Processors, error) {
-	processors := make(Processors, len(configs))
+func NewProcessorsMap(configs map[string]ProcessorConfig) (map[string]Processor, error) {
+	ret := make(map[string]Processor, len(configs))
 
-	for i, procConfig := range configs {
-		var err error
-
-		if processors[i], err = NewProcessorFromConfig(procConfig); err != nil {
+	for procName, procConfig := range configs {
+		processor, err := NewProcessorFromConfig(procConfig)
+		if err != nil {
 			return nil, errors.Trace(err)
 		}
+
+		ret[procName] = processor
+	}
+
+	return ret, nil
+}
+
+// NewProcessorsFromMap reads configs and creates Processors.
+func NewProcessorsFromMap(processorsMap map[string]Processor, names []string) (Processors, error) {
+	processors := make(Processors, len(processorsMap))
+
+	for i, name := range names {
+		proc, ok := processorsMap[name]
+		if !ok {
+			return nil, errors.Errorf("processor configuration not found: %q", name)
+		}
+
+		processors[i] = proc
 	}
 
 	return processors, nil
