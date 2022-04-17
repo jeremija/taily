@@ -50,11 +50,9 @@ func (p *ProcessorMatcher) performAction(ctx context.Context) error {
 
 // ProcessMessage implements Processor.
 func (p *ProcessorMatcher) ProcessMessage(ctx context.Context, message Message) error {
-	text := message.Text()
-
 	switch p.state {
 	case MatcherClosed:
-		if p.params.Start.MatchString(text) {
+		if p.params.Start.MatchMessage(message) {
 			p.messages = append(p.messages, message)
 			p.state = MatcherOpen
 
@@ -66,7 +64,7 @@ func (p *ProcessorMatcher) ProcessMessage(ctx context.Context, message Message) 
 	case MatcherOpen:
 		p.messages = append(p.messages, message)
 
-		if p.params.End.MatchString(text) {
+		if p.params.End.MatchMessage(message) {
 			p.performAction(ctx)
 		}
 	}

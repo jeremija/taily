@@ -74,14 +74,22 @@ type ProcessorConfig struct {
 
 // ProcessorMatcherConfig contains cofiguration for ProcessorMatcher.
 type ProcessorMatcherConfig struct {
-	Start MatcherConfig `yaml:"start"`
-	End   MatcherConfig `yaml:"end"`
+	Start *MatcherConfig `yaml:"start"`
+	End   *MatcherConfig `yaml:"end"`
 }
 
 // MatcherConfig contains configuration for Matcher.
 type MatcherConfig struct {
-	Type    string `yaml:"type"`
-	Pattern string `yaml:"pattern"`
+	Type      string           `yaml:"type"`
+	Substring string           `yaml:"substring"`
+	Regexp    string           `yaml:"regexp"`
+	And       []*MatcherConfig `yaml:"and"`
+	Or        []*MatcherConfig `yaml:"or"`
+	Not       *MatcherConfig   `yaml:"not"`
+	Field     struct {
+		Name   string `yaml:"field"`
+		Regexp string `yaml:"pattern"`
+	} `yaml:"field"`
 }
 
 // ProcessorLogConfig contains configuration for ProcessorLog.
@@ -205,9 +213,13 @@ func NewProcessorFromConfig(config ProcessorConfig, actionsMap map[string]Action
 			return nil, errors.Trace(err)
 		}
 
-		end, err := NewMatcherFromConfig(config.Matcher.End)
-		if err != nil {
-			return nil, errors.Trace(err)
+		var end Matcher
+
+		if config.Matcher.End != nil {
+			end, err = NewMatcherFromConfig(config.Matcher.End)
+			if err != nil {
+				return nil, errors.Trace(err)
+			}
 		}
 
 		return NewProcessorMatcher(ProcessorMatcherParams{
@@ -220,12 +232,52 @@ func NewProcessorFromConfig(config ProcessorConfig, actionsMap map[string]Action
 	}
 }
 
-func NewMatcherFromConfig(config MatcherConfig) (Matcher, error) {
+func NewMatchersFromConfig(configs []*MatcherConfig) ([]Matcher, error) {
+	ret := make([]Matcher, len(configs))
+
+	for i, config := range configs {
+		m, err := NewMatcherFromConfig(config)
+		if err != nil {
+			return nil, errors.Trace(err)
+		}
+
+		ret[i] = m
+	}
+
+	return ret, nil
+}
+
+func NewMatcherFromConfig(config *MatcherConfig) (Matcher, error) {
 	switch config.Type {
 	case "substring":
-		return NewMatcherSubstring(config.Pattern), nil
+		return NewMatcherSubstring(config.Substring), nil
 	case "regexp":
-		m, err := NewMatcherRegexp(config.Pattern)
+		m, err := NewMatcherRegexp(config.Regexp)
+		return m, errors.Trace(err)
+	case "and":
+		m, err := NewMatchersFromConfig(config.And)
+		if err != nil {
+			return nil, errors.Trace(err)
+		}
+
+		return NewMatcherAnd(m), nil
+	case "or":
+		m, err := NewMatchersFromConfig(config.Or)
+		if err != nil {
+			return nil, errors.Trace(err)
+		}
+
+		return NewMatcherOr(m), nil
+	case "not":
+		m, err := NewMatcherFromConfig(config.Not)
+		if err != nil {
+			return nil, errors.Trace(err)
+		}
+
+		return NewMatcherNot(m), nil
+	case "field":
+		m, err := NewMatcherField(config.Field.Name, config.Field.Regexp)
+
 		return m, errors.Trace(err)
 	default:
 		return nil, errors.Errorf("unknown matcher: %q", config.Type)

@@ -14,6 +14,6 @@ func NewMatcherSubstring(substring string) MatcherSubstring {
 	}
 }
 
-func (m MatcherSubstring) MatchString(str string) bool {
-	return strings.Contains(str, m.substring)
+func (m MatcherSubstring) MatchMessage(message Message) bool {
+	return strings.Contains(message.Text(), m.substring)
 }

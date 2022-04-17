@@ -6,8 +6,19 @@ import (
 	"github.com/juju/errors"
 )
 
-func NewMatcherRegexp(pattern string) (Matcher, error) {
-	m, err := regexp.Compile(pattern)
+type MatcherRegexp struct {
+	regexp *regexp.Regexp
+}
 
-	return m, errors.Trace(err)
+func NewMatcherRegexp(pattern string) (*MatcherRegexp, error) {
+	r, err := regexp.Compile(pattern)
+	if err != nil {
+		return nil, errors.Trace(err)
+	}
+
+	return &MatcherRegexp{regexp: r}, nil
+}
+
+func (m *MatcherRegexp) MatchMessage(message Message) bool {
+	return m.regexp.MatchString(message.Text())
 }
