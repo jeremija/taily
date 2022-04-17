@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"sync"
 	"syscall"
 
 	"github.com/jeremija/taily"
@@ -23,11 +24,25 @@ func main2(argv []string) error {
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM, syscall.SIGPIPE)
 	defer cancel()
 
-	logger := log.NewFromEnv("TAILY_LOG")
+	logger := log.NewFromEnv("TAILY_LOG").WithNamespace("taily")
 	config, err := taily.NewConfigFromEnv("TAILY_CONFIG")
 	if err != nil {
 		return errors.Trace(err)
 	}
+
+	var wg sync.WaitGroup
+
+	defer wg.Wait()
+
+	wg.Add(1)
+
+	go func() {
+		defer wg.Done()
+
+		<-ctx.Done()
+
+		logger.Info("Tearing down", nil)
+	}()
 
 	persister, err := taily.NewPersisterFromConfig(config.Persister)
 	if err != nil {
