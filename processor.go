@@ -1,4 +1,4 @@
-package guardlog
+package taily
 
 // Processor is a message processor.
 type Processor interface {

@@ -8,7 +8,7 @@ import (
 	"syscall"
 
 	"github.com/docker/docker/client"
-	"github.com/jeremija/guardlog"
+	"github.com/jeremija/taily"
 	"github.com/peer-calls/log"
 )
 
@@ -23,8 +23,8 @@ func main() {
 
 	logger := log.NewFromEnv("GUARDLOG_LOG")
 
-	watcher := guardlog.NewDockerContainer(guardlog.DockerContainerParams{
-		ReaderParams: guardlog.ReaderParams{
+	watcher := taily.NewDockerContainer(taily.DockerContainerParams{
+		ReaderParams: taily.ReaderParams{
 			ReaderID: "test",
 			Logger:   logger,
 		},
@@ -32,13 +32,13 @@ func main() {
 		ContainerID: "7cc68f2887f2",
 	})
 
-	dw := guardlog.NewWatcher(guardlog.WatcherParams{
-		Persister: guardlog.NewPersisterNoop(),
+	dw := taily.NewWatcher(taily.WatcherParams{
+		Persister: taily.NewPersisterNoop(),
 		Reader:    watcher,
 		Logger:    logger,
 	})
 
-	ch := make(chan guardlog.Message)
+	ch := make(chan taily.Message)
 	errCh := dw.WatchAsync(ctx, ch)
 
 	for msg := range ch {

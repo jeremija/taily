@@ -1,4 +1,4 @@
-module github.com/jeremija/guardlog
+module github.com/jeremija/taily
 
 go 1.18
 

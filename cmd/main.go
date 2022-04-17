@@ -7,7 +7,7 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/jeremija/guardlog"
+	"github.com/jeremija/taily"
 	"github.com/juju/errors"
 	"github.com/peer-calls/log"
 )
@@ -23,19 +23,18 @@ func main2(argv []string) error {
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM, syscall.SIGPIPE)
 	defer cancel()
 
-	config, err := guardlog.NewConfigFromEnv("GUARDLOG_CONFIG")
+	logger := log.NewFromEnv("TAILY_LOG")
+	config, err := taily.NewConfigFromEnv("TAILY_CONFIG")
 	if err != nil {
 		return errors.Trace(err)
 	}
 
-	logger := log.NewFromEnv("GUARDLOG_LOG")
-
-	persister, err := guardlog.NewPersisterFromConfig(config.Persister)
+	persister, err := taily.NewPersisterFromConfig(config.Persister)
 	if err != nil {
 		return errors.Trace(err)
 	}
 
-	processorsMap, err := guardlog.NewProcessorsMap(config.Processors)
+	processorsMap, err := taily.NewProcessorsMap(config.Processors)
 	if err != nil {
 		return errors.Trace(err)
 	}
@@ -43,19 +42,19 @@ func main2(argv []string) error {
 	errCh := make(chan error, len(config.Watchers))
 
 	for _, config := range config.Watchers {
-		processor, err := guardlog.NewProcessorsFromMap(processorsMap, config.Processors)
+		processor, err := taily.NewProcessorsFromMap(processorsMap, config.Processors)
 		if err != nil {
 			errCh <- errors.Trace(err)
 			continue
 		}
 
-		watcher, err := guardlog.NewReaderFromConfig(logger, persister, config)
+		watcher, err := taily.NewReaderFromConfig(logger, persister, config)
 		if err != nil {
 			errCh <- errors.Trace(err)
 			continue
 		}
 
-		dw := guardlog.NewWatcher(guardlog.WatcherParams{
+		dw := taily.NewWatcher(taily.WatcherParams{
 			Persister:    persister,
 			Reader:       watcher,
 			Logger:       logger,
@@ -63,7 +62,7 @@ func main2(argv []string) error {
 		})
 
 		go func() {
-			ch := make(chan guardlog.Message)
+			ch := make(chan taily.Message)
 			localErrCh := make(chan error, 1)
 
 			go func() {

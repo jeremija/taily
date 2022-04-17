@@ -1,4 +1,4 @@
-package guardlog
+package taily
 
 import (
 	nativeErrors "errors"
