@@ -24,6 +24,10 @@ func NewJournald(params JournaldParams) *Journald {
 
 	params.Logger = LoggerWithReaderID(params.Logger, params.ReaderID)
 
+	if params.NewJournal == nil {
+		params.NewJournal = sdjournal.NewJournal
+	}
+
 	return &Journald{
 		params: params,
 	}
@@ -31,8 +35,8 @@ func NewJournald(params JournaldParams) *Journald {
 
 // JournaldParams contains parameters for NewJournald.
 type JournaldParams struct {
-	ReaderParams                    // ReaderParams contains common reader params.
-	Journal      *sdjournal.Journal // Journal to read from.
+	ReaderParams                                    // ReaderParams contains common reader params.
+	NewJournal   func() (*sdjournal.Journal, error) // NewJournal creates a Journal to read from.
 }
 
 // ReaderID implements Reader.
@@ -45,12 +49,18 @@ func (d *Journald) ReadLogs(ctx context.Context, params ReadLogsParams) error {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
 
+	// We use a factory so all calls can be locked to the OS thread.
+	journal, err := d.params.NewJournal()
+	if err != nil {
+		return errors.Trace(err)
+	}
+
 	state := params.State
 
 	if cursor := state.Cursor; cursor != "" {
 		cursor := state.Cursor
 
-		if err := d.params.Journal.SeekCursor(string(cursor)); err != nil {
+		if err := journal.SeekCursor(string(cursor)); err != nil {
 			d.params.Logger.Error("Failed to seek cursor", err, log.Ctx{
 				"cursor": cursor,
 			})
@@ -58,7 +68,7 @@ func (d *Journald) ReadLogs(ctx context.Context, params ReadLogsParams) error {
 	} else if ts := state.Timestamp; !ts.IsZero() {
 		usec := uint64(ts.UnixMicro())
 
-		if err := d.params.Journal.SeekRealtimeUsec(usec); err != nil {
+		if err := journal.SeekRealtimeUsec(usec); err != nil {
 			d.params.Logger.Error("Failed to seek cursor", err, log.Ctx{
 				"cursor": cursor,
 			})
@@ -71,7 +81,7 @@ func (d *Journald) ReadLogs(ctx context.Context, params ReadLogsParams) error {
 				return errors.Trace(err)
 			}
 
-			waitResult := d.params.Journal.Wait(time.Second)
+			waitResult := journal.Wait(time.Second)
 
 			switch waitResult {
 			case sdjournal.SD_JOURNAL_NOP: // No change.
@@ -89,7 +99,7 @@ func (d *Journald) ReadLogs(ctx context.Context, params ReadLogsParams) error {
 	}
 
 	for {
-		c, err := d.params.Journal.Next()
+		c, err := journal.Next()
 		if err != nil {
 			return errors.Trace(err)
 		}
@@ -102,7 +112,7 @@ func (d *Journald) ReadLogs(ctx context.Context, params ReadLogsParams) error {
 			continue
 		}
 
-		entry, err := d.params.Journal.GetEntry()
+		entry, err := journal.GetEntry()
 		if err != nil {
 			return errors.Trace(err)
 		}

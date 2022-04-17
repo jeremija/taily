@@ -169,14 +169,9 @@ func NewReaderFromConfig(
 
 	switch config.Name {
 	case ReaderNameJournald:
-		journal, err := sdjournal.NewJournal()
-		if err != nil {
-			return nil, errors.Trace(err)
-		}
-
 		params := JournaldParams{
 			ReaderParams: watcherParams,
-			Journal:      journal,
+			NewJournal:   sdjournal.NewJournal,
 		}
 
 		return NewJournald(params), nil

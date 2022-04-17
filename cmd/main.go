@@ -24,7 +24,13 @@ func main2(argv []string) error {
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM, syscall.SIGPIPE)
 	defer cancel()
 
-	logger := log.NewFromEnv("TAILY_LOG").WithNamespace("taily")
+	logger := log.New().
+		WithConfig(log.NewConfig(log.ConfigMap{
+			"**": log.LevelInfo,
+		})).
+		WithConfig(log.NewConfigFromString(os.Getenv("TAILY_LOG"))).
+		WithNamespace("taily")
+
 	config, err := taily.NewConfigFromEnv("TAILY_CONFIG")
 	if err != nil {
 		return errors.Trace(err)
@@ -78,14 +84,13 @@ func main2(argv []string) error {
 
 		go func() {
 			ch := make(chan taily.Message)
-			localErrCh := make(chan error, 1)
 
-			go func() {
-				localErrCh <- errors.Trace(dw.Watch(ctx, ch))
-			}()
+			localErrCh := dw.WatchAsync(ctx, ch)
 
 			for message := range ch {
 				if err := processor.ProcessMessage(message); err != nil {
+					// Do not exit if we fail to process. Doing so would just stop
+					// reading logs altogether.
 					logger.Error("Failed to process message", err, nil)
 				}
 			}

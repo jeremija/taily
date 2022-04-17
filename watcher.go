@@ -48,11 +48,19 @@ func (dw *Watcher) watch(ctx context.Context, state State, ch chan<- Message) (S
 
 	count := 0
 
+	send := func(message Message) error {
+		select {
+		case ch <- message:
+			return nil
+		case <-ctx.Done():
+			return errors.Trace(ctx.Err())
+		}
+	}
+
 	// Ignore old messages.
 	if state.NumMessages > 0 {
-	loop:
-		for msg := range localCh {
-			if msg.Timestamp.Equal(state.Timestamp) {
+		for message := range localCh {
+			if message.Timestamp.Equal(state.Timestamp) {
 				count++
 
 				if count <= state.NumMessages {
@@ -60,23 +68,21 @@ func (dw *Watcher) watch(ctx context.Context, state State, ch chan<- Message) (S
 				}
 			}
 
-			state = state.WithTimestamp(msg.Timestamp).WithCursor(msg.Cursor)
+			state = state.WithTimestamp(message.Timestamp).WithCursor(message.Cursor)
 
-			select {
-			case ch <- msg:
-				break loop
-			case <-ctx.Done():
-				return state, errors.Trace(ctx.Err())
+			if err := send(message); err != nil {
+				return state, errors.Trace(err)
 			}
+
+			break
 		}
 	}
 
-	for msg := range localCh {
-		select {
-		case ch <- msg:
-			state = state.WithTimestamp(msg.Timestamp).WithCursor(msg.Cursor)
-		case <-ctx.Done():
-			return state, errors.Trace(ctx.Err())
+	for message := range localCh {
+		state = state.WithTimestamp(message.Timestamp).WithCursor(message.Cursor)
+
+		if err := send(message); err != nil {
+			return state, errors.Trace(err)
 		}
 	}
 
