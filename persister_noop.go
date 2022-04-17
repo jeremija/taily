@@ -13,11 +13,11 @@ func NewPersisterNoop() PersisterNoop {
 	return PersisterNoop{}
 }
 
-func (n PersisterNoop) LoadState(ctx context.Context, watcherID WatcherID) (State, error) {
+func (n PersisterNoop) LoadState(ctx context.Context, watcherID ReaderID) (State, error) {
 	return State{}, nil
 }
 
-func (n PersisterNoop) SaveState(ctx context.Context, watcherID WatcherID, state State) error {
+func (n PersisterNoop) SaveState(ctx context.Context, watcherID ReaderID, state State) error {
 	fmt.Println("SaveState", watcherID, state)
 	return nil
 }

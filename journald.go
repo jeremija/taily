@@ -15,25 +15,25 @@ type Journald struct {
 }
 
 type JournaldParams struct {
-	WatcherParams
+	ReaderParams
 	Journal *sdjournal.Journal
 }
 
 func NewJournald(params JournaldParams) *Journald {
 	params.Logger = params.Logger.WithNamespaceAppended("journald")
 
-	params.Logger = LoggerWithWatcherID(params.Logger, params.WatcherID)
+	params.Logger = LoggerWithReaderID(params.Logger, params.ReaderID)
 
 	return &Journald{
 		params: params,
 	}
 }
 
-func (d *Journald) WatcherID() WatcherID {
-	return d.params.WatcherID
+func (d *Journald) ReaderID() ReaderID {
+	return d.params.ReaderID
 }
 
-func (d *Journald) Watch(ctx context.Context, params WatchParams) error {
+func (d *Journald) ReadLogs(ctx context.Context, params ReadLogsParams) error {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
 
@@ -103,7 +103,7 @@ func (d *Journald) Watch(ctx context.Context, params WatchParams) error {
 			Timestamp: time.UnixMicro(int64(entry.RealtimeTimestamp)).UTC(),
 			Cursor:    entry.Cursor,
 			Fields:    entry.Fields,
-			WatcherID: d.params.WatcherID,
+			ReaderID:  d.params.ReaderID,
 		}
 
 		if err := params.Send(ctx, message); err != nil {

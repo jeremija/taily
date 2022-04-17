@@ -107,10 +107,10 @@ func NewWatcherFromConfig(
 	logger log.Logger,
 	persister Persister,
 	config WatcherConfig,
-) (Watcher, error) {
-	watcherParams := WatcherParams{
-		WatcherID: WatcherID(config.Name),
-		Logger:    logger,
+) (Reader, error) {
+	watcherParams := ReaderParams{
+		ReaderID: ReaderID(config.Name),
+		Logger:   logger,
 	}
 
 	switch config.Name {
@@ -121,8 +121,8 @@ func NewWatcherFromConfig(
 		}
 
 		params := JournaldParams{
-			WatcherParams: watcherParams,
-			Journal:       journal,
+			ReaderParams: watcherParams,
+			Journal:      journal,
 		}
 
 		return NewJournald(params), nil
@@ -136,9 +136,9 @@ func NewWatcherFromConfig(
 		}
 
 		params := DockerParams{
-			WatcherParams: watcherParams,
-			Client:        cl,
-			Persister:     persister,
+			ReaderParams: watcherParams,
+			Client:       cl,
+			Persister:    persister,
 		}
 
 		return NewDocker(params), nil

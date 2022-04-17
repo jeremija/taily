@@ -2,8 +2,8 @@ package guardlog
 
 import "github.com/peer-calls/log"
 
-func LoggerWithWatcherID(logger log.Logger, watcherID WatcherID) log.Logger {
+func LoggerWithReaderID(logger log.Logger, readerID ReaderID) log.Logger {
 	return logger.WithCtx(log.Ctx{
-		"watcher_id": watcherID,
+		"reader_id": readerID,
 	})
 }

@@ -22,7 +22,7 @@ type DockerContainer struct {
 func NewDockerContainer(params DockerContainerParams) *DockerContainer {
 	params.Logger = params.Logger.WithNamespaceAppended("docker_container")
 
-	params.Logger = LoggerWithWatcherID(params.Logger, params.WatcherID)
+	params.Logger = LoggerWithReaderID(params.Logger, params.ReaderID)
 
 	params.Logger = params.Logger.WithCtx(log.Ctx{
 		"docker_container_id": params.ContainerID,
@@ -34,29 +34,30 @@ func NewDockerContainer(params DockerContainerParams) *DockerContainer {
 }
 
 type DockerContainerParams struct {
-	WatcherParams
+	ReaderParams
 	Client      *client.Client
 	ContainerID string
 }
 
-func (d *DockerContainer) WatcherID() WatcherID {
-	return d.params.WatcherID
+func (d *DockerContainer) ReaderID() ReaderID {
+	return d.params.ReaderID
 }
 
-func (d *DockerContainer) Watch(ctx context.Context, params WatchParams) error {
+func (d *DockerContainer) ReadLogs(ctx context.Context, params ReadLogsParams) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
+	containerID := d.params.ContainerID
 	state := params.State
 
-	inspect, err := d.params.Client.ContainerInspect(ctx, d.params.ContainerID)
+	inspect, err := d.params.Client.ContainerInspect(ctx, containerID)
 	if err != nil {
 		return errors.Trace(err)
 	}
 
 	isTTY := inspect.Config.Tty
 
-	reader, err := d.params.Client.ContainerLogs(ctx, d.params.ContainerID, types.ContainerLogsOptions{
+	reader, err := d.params.Client.ContainerLogs(ctx, containerID, types.ContainerLogsOptions{
 		Since:      formatDockerSince(state.Timestamp),
 		ShowStdout: true,
 		ShowStderr: true,
@@ -71,7 +72,7 @@ func (d *DockerContainer) Watch(ctx context.Context, params WatchParams) error {
 
 	var stdout, stderr io.Reader
 
-	watcherID := d.params.WatcherID
+	watcherID := d.params.ReaderID
 	stdout = reader
 	errCh := make(chan error, 2)
 
@@ -95,11 +96,27 @@ func (d *DockerContainer) Watch(ctx context.Context, params WatchParams) error {
 	}
 
 	go func() {
-		errCh <- errors.Trace(ScanDockerContainer(ctx, watcherID, SourceStdout, params, stdout))
+		p := ScanDockerContainerLogsParams{
+			WatcherID:      watcherID,
+			ContainerID:    containerID,
+			Source:         SourceStdout,
+			ReadLogsParams: params,
+			Reader:         stdout,
+		}
+
+		errCh <- errors.Trace(ScanDockerContainerLogs(ctx, p))
 	}()
 
 	go func() {
-		errCh <- errors.Trace(ScanDockerContainer(ctx, watcherID, SourceStderr, params, stderr))
+		p := ScanDockerContainerLogsParams{
+			WatcherID:      watcherID,
+			ContainerID:    containerID,
+			Source:         SourceStderr,
+			ReadLogsParams: params,
+			Reader:         stderr,
+		}
+
+		errCh <- errors.Trace(ScanDockerContainerLogs(ctx, p))
 	}()
 
 	var retErr error
@@ -117,18 +134,20 @@ func (d *DockerContainer) Watch(ctx context.Context, params WatchParams) error {
 	return errors.Trace(retErr)
 }
 
-func ScanDockerContainer(
-	ctx context.Context,
-	watcherID WatcherID,
-	source Source,
-	params WatchParams,
-	reader io.Reader,
-) error {
-	if reader == nil {
+type ScanDockerContainerLogsParams struct {
+	WatcherID      ReaderID
+	ContainerID    string
+	Source         Source
+	ReadLogsParams ReadLogsParams
+	Reader         io.Reader
+}
+
+func ScanDockerContainerLogs(ctx context.Context, params ScanDockerContainerLogsParams) error {
+	if params.Reader == nil {
 		return nil
 	}
 
-	scanner := bufio.NewScanner(reader)
+	scanner := bufio.NewScanner(params.Reader)
 
 	for scanner.Scan() {
 		line := scanner.Text()
@@ -144,19 +163,21 @@ func ScanDockerContainer(
 			return errors.Trace(err)
 		}
 
-		message := Message{
-			Timestamp: timestamp,
-			Fields: map[string]string{
-				"MESSAGE": split[1],
-			},
-			Source:    source,
-			WatcherID: watcherID,
-		}
+		message := NewMessage(timestamp.UTC(), params.WatcherID, split[1], Fields{
+			"container_id": params.ContainerID,
+		})
+		message.Source = params.Source
 
-		if err := params.Send(ctx, message); err != nil {
+		if err := params.ReadLogsParams.Send(ctx, message); err != nil {
 			return errors.Trace(err)
 		}
 	}
 
-	return errors.Trace(scanner.Err())
+	err := scanner.Err()
+
+	if !isError(err, io.ErrClosedPipe) {
+		return errors.Trace(err)
+	}
+
+	return nil
 }

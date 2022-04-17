@@ -4,79 +4,32 @@ import (
 	"context"
 	"time"
 
-	"github.com/peer-calls/log"
-
 	"github.com/juju/errors"
+	"github.com/peer-calls/log"
 )
 
-type WatcherID string
-
-type Watcher interface {
-	WatcherID() WatcherID
-	Watch(context.Context, WatchParams) error
+type Watcher struct {
+	params WatcherParams
 }
 
 type WatcherParams struct {
-	WatcherID WatcherID
-	Logger    log.Logger
+	Persister Persister  // Persister to load and store state with.
+	Reader    Reader     // Reader to read logs from.
+	Logger    log.Logger // Logger to use.
+	NoClose   bool       //NoClose will prevent Watch from closing ch on exit.
 }
 
-type WatchParams struct {
-	State State
-	Ch    chan<- Message
-}
-
-func (w WatchParams) Send(ctx context.Context, message Message) error {
-	select {
-	case w.Ch <- message:
-		return nil
-	case <-ctx.Done():
-		return errors.Trace(ctx.Err())
-	}
-}
-
-type DaemonWatcher struct {
-	params DaemonWatcherParams
-}
-
-type DaemonWatcherParams struct {
-	Persister Persister
-	Watcher   Watcher
-	Logger    log.Logger
-	NoClose   bool
-}
-
-func NewDaemonWatcher(params DaemonWatcherParams) *DaemonWatcher {
-	return &DaemonWatcher{
+func NewWatcher(params WatcherParams) *Watcher {
+	return &Watcher{
 		params: params,
 	}
 }
 
-func (dw *DaemonWatcher) WatchDaemon(ctx context.Context, ch chan<- Message) error {
-	if !dw.params.NoClose {
-		defer close(ch)
-	}
-
-	watcherID := dw.params.Watcher.WatcherID()
-
-	logger := dw.params.Logger
-
-	logger.Info("Watch daemon STARTED", nil)
-	defer logger.Info("Watch daemon DONE", nil)
-
-	state, err := dw.params.Persister.LoadState(ctx, watcherID)
-	if err != nil {
-		return errors.Trace(err)
-	}
-
-	logger.Info("Loaded state", log.Ctx{
-		"state": state.String(),
-	})
-
+func (dw *Watcher) watch(ctx context.Context, state State, ch chan<- Message) (State, error) {
 	localCh := make(chan Message)
 	errCh := make(chan error, 1)
 
-	params := WatchParams{
+	params := ReadLogsParams{
 		State: state,
 		Ch:    localCh,
 	}
@@ -84,18 +37,7 @@ func (dw *DaemonWatcher) WatchDaemon(ctx context.Context, ch chan<- Message) err
 	go func() {
 		defer close(localCh)
 
-		errCh <- errors.Trace(dw.params.Watcher.Watch(ctx, params))
-	}()
-
-	defer func() {
-		ctx2, cancel2 := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel2()
-
-		logger.Info("Saving state", nil)
-
-		if err := dw.params.Persister.SaveState(ctx2, watcherID, state); err != nil {
-			logger.Error("Saving state", err, nil)
-		}
+		errCh <- errors.Trace(dw.params.Reader.ReadLogs(ctx, params))
 	}()
 
 	count := 0
@@ -118,7 +60,7 @@ func (dw *DaemonWatcher) WatchDaemon(ctx context.Context, ch chan<- Message) err
 			case ch <- msg:
 				break loop
 			case <-ctx.Done():
-				return errors.Trace(err)
+				return state, errors.Trace(ctx.Err())
 			}
 		}
 	}
@@ -128,18 +70,69 @@ func (dw *DaemonWatcher) WatchDaemon(ctx context.Context, ch chan<- Message) err
 		case ch <- msg:
 			state = state.WithTimestamp(msg.Timestamp).WithCursor(msg.Cursor)
 		case <-ctx.Done():
-			return errors.Trace(err)
+			return state, errors.Trace(ctx.Err())
 		}
 	}
 
-	return errors.Trace(<-errCh)
+	return state, errors.Trace(<-errCh)
 }
 
-func (dw *DaemonWatcher) WatchDaemonAsync(ctx context.Context, ch chan<- Message) <-chan error {
+func (dw *Watcher) persistState(state State) {
+	// Use a different context because we still want to be able to persist state
+	// on shutdown.
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	readerID := dw.params.Reader.ReaderID()
+	logger := dw.params.Logger.WithCtx(log.Ctx{
+		"state": state.String(),
+	})
+
+	// TODO perhaps it would be wiser to call SaveState only after we've
+	// successfully processed the message. On the other hand, failure to
+	// process could hang the processing indefinitely in case we reached a part
+	// that we cannot process
+	if err := dw.params.Persister.SaveState(ctx, readerID, state); err != nil {
+		logger.Error("Saving state", err, nil)
+	} else {
+		logger.Info("Saved state", nil)
+	}
+}
+
+func (dw *Watcher) Watch(ctx context.Context, ch chan<- Message) error {
+	if !dw.params.NoClose {
+		defer close(ch)
+	}
+
+	readerID := dw.params.Reader.ReaderID()
+	logger := dw.params.Logger
+
+	logger.Info("Watch daemon STARTED", nil)
+	defer logger.Info("Watch daemon DONE", nil)
+
+	state, err := dw.params.Persister.LoadState(ctx, readerID)
+	if err != nil {
+		return errors.Trace(err)
+	}
+
+	logger.Info("Loaded state", log.Ctx{
+		"state": state.String(),
+	})
+
+	// Persist state at the end, regardless if we encountered an error or not.
+
+	state, err = dw.watch(ctx, state, ch)
+
+	dw.persistState(state)
+
+	return errors.Trace(err)
+}
+
+func (dw *Watcher) WatchAsync(ctx context.Context, ch chan<- Message) <-chan error {
 	errCh := make(chan error, 1)
 
 	go func() {
-		errCh <- errors.Trace(dw.WatchDaemon(ctx, ch))
+		errCh <- errors.Trace(dw.Watch(ctx, ch))
 	}()
 
 	return errCh

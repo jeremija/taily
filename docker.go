@@ -2,7 +2,6 @@ package guardlog
 
 import (
 	"context"
-	"fmt"
 	"sync"
 	"time"
 
@@ -20,7 +19,7 @@ type Docker struct {
 func NewDocker(params DockerParams) *Docker {
 	params.Logger = params.Logger.WithNamespaceAppended("docker")
 
-	params.Logger = LoggerWithWatcherID(params.Logger, params.WatcherID)
+	params.Logger = LoggerWithReaderID(params.Logger, params.ReaderID)
 
 	return &Docker{
 		params: params,
@@ -28,7 +27,7 @@ func NewDocker(params DockerParams) *Docker {
 }
 
 type DockerParams struct {
-	WatcherParams
+	ReaderParams
 	Client    *client.Client
 	Persister Persister
 }
@@ -42,11 +41,11 @@ func formatDockerSince(ts time.Time) string {
 	return ""
 }
 
-func (d *Docker) WatcherID() WatcherID {
-	return d.params.WatcherID
+func (d *Docker) ReaderID() ReaderID {
+	return d.params.ReaderID
 }
 
-func (d *Docker) Watch(ctx context.Context, params WatchParams) error {
+func (d *Docker) ReadLogs(ctx context.Context, params ReadLogsParams) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
@@ -92,15 +91,15 @@ func (d *Docker) Watch(ctx context.Context, params WatchParams) error {
 			return
 		}
 
-		dcDaemonID := d.params.WatcherID + WatcherID(":"+containerID)
+		dcDaemonID := d.params.ReaderID + ReaderID(":"+containerID)
 
-		watcherParams := d.params.WatcherParams
-		watcherParams.WatcherID = dcDaemonID
+		watcherParams := d.params.ReaderParams
+		watcherParams.ReaderID = dcDaemonID
 
 		dockerContainerParams := DockerContainerParams{
-			WatcherParams: watcherParams,
-			Client:        d.params.Client,
-			ContainerID:   containerID,
+			ReaderParams: watcherParams,
+			Client:       d.params.Client,
+			ContainerID:  containerID,
 		}
 
 		logger := d.params.Logger.WithCtx(log.Ctx{
@@ -109,7 +108,6 @@ func (d *Docker) Watch(ctx context.Context, params WatchParams) error {
 
 		dc := NewDockerContainer(dockerContainerParams)
 
-		// ctx2, cancel2 := context.WithCancel(ctx)
 		done := make(chan struct{})
 
 		prevContainer := dockerContainers[containerID]
@@ -137,24 +135,25 @@ func (d *Docker) Watch(ctx context.Context, params WatchParams) error {
 
 				select {
 				case <-prevContainer.done:
+					logger.Info("Previous container terminated", nil)
 				case <-ctx.Done():
 					logger.Error("Context canceled", ctx.Err(), nil)
 					return
 				}
 			}
 
-			dwParams := DaemonWatcherParams{
+			dwParams := WatcherParams{
 				Persister: d.params.Persister,
-				Watcher:   dc,
+				Reader:    dc,
 				Logger:    logger,
 				NoClose:   true,
 			}
 
-			dw := NewDaemonWatcher(dwParams)
+			dw := NewWatcher(dwParams)
 
 			logger.Info("Watching", nil)
 
-			if err := dw.WatchDaemon(ctx, params.Ch); err != nil {
+			if err := dw.Watch(ctx, params.Ch); err != nil {
 				logger.Error("Watch failed", err, nil)
 
 				return
@@ -172,6 +171,8 @@ func (d *Docker) Watch(ctx context.Context, params WatchParams) error {
 		watchContainer(container.ID)
 	}
 
+	readerID := d.params.ReaderID
+
 	for {
 		select {
 		case ev, ok := <-eventsCh:
@@ -180,16 +181,12 @@ func (d *Docker) Watch(ctx context.Context, params WatchParams) error {
 				continue
 			}
 
-			d.params.Logger.Info(fmt.Sprintf("Received event: %+v", ev), nil)
+			timestamp := time.Unix(0, ev.TimeNano).UTC()
 
-			message := Message{
-				Timestamp: time.Unix(0, ev.TimeNano).UTC(),
-				Fields: map[string]string{
-					"action":       ev.Action,
-					"container_id": ev.Actor.ID,
-				},
-				WatcherID: d.params.WatcherID,
-			}
+			message := NewMessage(timestamp, readerID, "Container "+ev.Action, Fields{
+				"action":       ev.Action,
+				"container_id": ev.Actor.ID,
+			})
 
 			if err := params.Send(ctx, message); err != nil {
 				return errors.Trace(err)

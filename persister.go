@@ -5,6 +5,6 @@ import (
 )
 
 type Persister interface {
-	LoadState(context.Context, WatcherID) (State, error)
-	SaveState(context.Context, WatcherID, State) error
+	LoadState(context.Context, ReaderID) (State, error)
+	SaveState(context.Context, ReaderID, State) error
 }
