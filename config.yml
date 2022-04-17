@@ -10,10 +10,13 @@ persister:
     dir: ./state/
 processors:
   proc_log:
-    type: any
+    type: matcher
     action: action_log
-    log:
-      format: json
+    matcher:
+      start_line:
+        type: any
+        # type: substring
+        # substring: container
 watchers:
   - type: journald
     processors:

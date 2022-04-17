@@ -8,7 +8,9 @@ import (
 	"sync"
 	"syscall"
 
-	"github.com/jeremija/taily"
+	"github.com/jeremija/taily/config"
+	"github.com/jeremija/taily/factory"
+	"github.com/jeremija/taily/types"
 	"github.com/juju/errors"
 	"github.com/peer-calls/log"
 )
@@ -31,7 +33,7 @@ func main2(argv []string) error {
 		WithConfig(log.NewConfigFromString(os.Getenv("TAILY_LOG"))).
 		WithNamespace("taily")
 
-	config, err := taily.NewConfigFromEnv("TAILY_CONFIG")
+	cfg, err := config.NewFromEnv("TAILY_CONFIG")
 	if err != nil {
 		return errors.Trace(err)
 	}
@@ -50,49 +52,12 @@ func main2(argv []string) error {
 		logger.Info("Tearing down", nil)
 	}()
 
-	actionsMap, err := taily.NewActionsMap(config.Actions)
-	if err != nil {
-		return errors.Trace(err)
-	}
+	pipelines, err := factory.NewPipelines(logger, cfg)
 
-	persister, err := taily.NewPersisterFromConfig(config.Persister)
-	if err != nil {
-		return errors.Trace(err)
-	}
+	errCh := make(chan error, len(pipelines))
 
-	processorsMap, err := taily.NewProcessorsMap(config.Processors, actionsMap)
-	if err != nil {
-		return errors.Trace(err)
-	}
-
-	errCh := make(chan error, len(config.Watchers))
-
-	for _, config := range config.Watchers {
-		newProcessor, err := taily.NewProcessorsFromMap(processorsMap, config.Processors)
-		if err != nil {
-			errCh <- errors.Trace(err)
-			continue
-		}
-
-		watcher, err := taily.NewReaderFromConfig(logger, persister, newProcessor, config)
-		if err != nil {
-			errCh <- errors.Trace(err)
-			continue
-		}
-
-		dw := taily.NewWatcher(taily.WatcherParams{
-			Persister:    persister,
-			Reader:       watcher,
-			Logger:       logger,
-			InitialState: config.InitialState,
-		})
-
-		pipeline := taily.NewPipeline(taily.PipelineParams{
-			Logger:       logger,
-			Watcher:      dw,
-			NewProcessor: newProcessor,
-			BufferSize:   0,
-		})
+	for i := range pipelines {
+		pipeline := pipelines[i]
 
 		go func() {
 			errCh <- errors.Trace(pipeline.ProcessPipeline(ctx))
@@ -101,9 +66,9 @@ func main2(argv []string) error {
 
 	numErrors := 0
 
-	for i := 0; i < len(config.Watchers); i++ {
+	for i := 0; i < cap(errCh); i++ {
 		if err := <-errCh; err != nil {
-			if taily.IsError(err, context.Canceled) {
+			if types.IsError(err, context.Canceled) {
 				logger.Info("Watcher complete", nil)
 			} else {
 				numErrors++
@@ -113,7 +78,7 @@ func main2(argv []string) error {
 	}
 
 	if numErrors > 0 {
-		return errors.Errorf("errors encountered: %d", numErrors)
+		return errors.Errorf("there were errors: %d", numErrors)
 	}
 
 	return nil
