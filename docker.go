@@ -12,10 +12,15 @@ import (
 	"github.com/peer-calls/log"
 )
 
+// Docker is a Reader that can read Docker events.
 type Docker struct {
 	params DockerParams
 }
 
+// Assert that Docker implements Reader.
+var _ Reader = &Docker{}
+
+// NewDocker creates a new instance of Docker.
 func NewDocker(params DockerParams) *Docker {
 	params.Logger = params.Logger.WithNamespaceAppended("docker")
 
@@ -26,12 +31,15 @@ func NewDocker(params DockerParams) *Docker {
 	}
 }
 
+// DockerParams contains parameters for NewDocker.
 type DockerParams struct {
-	ReaderParams
-	Client    *client.Client
-	Persister Persister
+	ReaderParams                // ReaderParams contains common reader params.
+	Client       *client.Client // Client is the docker client to use.
+	Persister    Persister      // Persister to load/save container state.
 }
 
+// formatDockerSince formats a ts for the ContainerLogs and Events Since
+// argument.
 func formatDockerSince(ts time.Time) string {
 	if !ts.IsZero() {
 		// TODO figure out the correct time format.
@@ -41,10 +49,12 @@ func formatDockerSince(ts time.Time) string {
 	return ""
 }
 
+// ReaderID implements Reader.
 func (d *Docker) ReaderID() ReaderID {
 	return d.params.ReaderID
 }
 
+// ReadLogs implements Reader.
 func (d *Docker) ReadLogs(ctx context.Context, params ReadLogsParams) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()

@@ -10,15 +10,15 @@ import (
 	"github.com/peer-calls/log"
 )
 
+//Journald is a Reader that can read events from systemd's journal.
 type Journald struct {
 	params JournaldParams
 }
 
-type JournaldParams struct {
-	ReaderParams
-	Journal *sdjournal.Journal
-}
+// Assert that Journald implements Reader.
+var _ Reader = &Journald{}
 
+// NewJournald creates a new instance of Journald.
 func NewJournald(params JournaldParams) *Journald {
 	params.Logger = params.Logger.WithNamespaceAppended("journald")
 
@@ -29,10 +29,18 @@ func NewJournald(params JournaldParams) *Journald {
 	}
 }
 
+// JournaldParams contains parameters for NewJournald.
+type JournaldParams struct {
+	ReaderParams                    // ReaderParams contains common reader params.
+	Journal      *sdjournal.Journal // Journal to read from.
+}
+
+// ReaderID implements Reader.
 func (d *Journald) ReaderID() ReaderID {
 	return d.params.ReaderID
 }
 
+// ReadLogs implements Reader.
 func (d *Journald) ReadLogs(ctx context.Context, params ReadLogsParams) error {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()

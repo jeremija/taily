@@ -15,10 +15,16 @@ import (
 	"github.com/peer-calls/log"
 )
 
+// DockerContainer is a Reader that can read logs from a single docker
+// container.
 type DockerContainer struct {
 	params DockerContainerParams
 }
 
+// Assert that DockerContainer implements Reader.
+var _ Reader = &DockerContainer{}
+
+// NewDockerContainer creates a new instance of DockerContainer.
 func NewDockerContainer(params DockerContainerParams) *DockerContainer {
 	params.Logger = params.Logger.WithNamespaceAppended("docker_container")
 
@@ -33,16 +39,19 @@ func NewDockerContainer(params DockerContainerParams) *DockerContainer {
 	}
 }
 
+// DockerContainer contains parameters for NewDockerContainer.
 type DockerContainerParams struct {
-	ReaderParams
-	Client      *client.Client
-	ContainerID string
+	ReaderParams                // ReaderParams contains common reader params.
+	Client       *client.Client // Client is the docker client to use.
+	ContainerID  string         // ContainerID to read logs from.
 }
 
+// ReaderID implements Reader.
 func (d *DockerContainer) ReaderID() ReaderID {
 	return d.params.ReaderID
 }
 
+// ReadLogs implements Reader.
 func (d *DockerContainer) ReadLogs(ctx context.Context, params ReadLogsParams) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()

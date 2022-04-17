@@ -8,15 +8,11 @@ import (
 	"github.com/peer-calls/log"
 )
 
+// Watcher is a component that wraps a Reader and worrires about loading and
+// storing state before an after calling Reader.ReadLogs. It ensures that each
+// Reader never reads the same messages that were previously read.
 type Watcher struct {
 	params WatcherParams
-}
-
-type WatcherParams struct {
-	Persister Persister  // Persister to load and store state with.
-	Reader    Reader     // Reader to read logs from.
-	Logger    log.Logger // Logger to use.
-	NoClose   bool       //NoClose will prevent Watch from closing ch on exit.
 }
 
 func NewWatcher(params WatcherParams) *Watcher {
@@ -25,6 +21,15 @@ func NewWatcher(params WatcherParams) *Watcher {
 	}
 }
 
+// WatcherParams contains parameters for NewWatcher.
+type WatcherParams struct {
+	Persister Persister  // Persister to load and store state with.
+	Reader    Reader     // Reader to read logs from.
+	Logger    log.Logger // Logger to use.
+	NoClose   bool       //NoClose will prevent Watch from closing ch on exit.
+}
+
+// watch calls ReadLogs and prevents duplicate messages from being read.
 func (dw *Watcher) watch(ctx context.Context, state State, ch chan<- Message) (State, error) {
 	localCh := make(chan Message)
 	errCh := make(chan error, 1)
@@ -43,13 +48,13 @@ func (dw *Watcher) watch(ctx context.Context, state State, ch chan<- Message) (S
 	count := 0
 
 	// Ignore old messages.
-	if state.SameTimestamp > 0 {
+	if state.NumMessages > 0 {
 	loop:
 		for msg := range localCh {
 			if msg.Timestamp.Equal(state.Timestamp) {
 				count++
 
-				if count <= state.SameTimestamp {
+				if count <= state.NumMessages {
 					continue
 				}
 			}
@@ -77,6 +82,8 @@ func (dw *Watcher) watch(ctx context.Context, state State, ch chan<- Message) (S
 	return state, errors.Trace(<-errCh)
 }
 
+// persistState persists the Reader's state. It uses a separate context so that
+// we can still persist the state upon shutdown (e.g. SIGTERM).
 func (dw *Watcher) persistState(state State) {
 	// Use a different context because we still want to be able to persist state
 	// on shutdown.
@@ -99,6 +106,9 @@ func (dw *Watcher) persistState(state State) {
 	}
 }
 
+// Watch loads the state and invokes the Reader.ReadLogs. It persists the state
+// after the reading is done. The ch will be closed after reading is complete
+// only if WatcherParams.NoClose is false.
 func (dw *Watcher) Watch(ctx context.Context, ch chan<- Message) error {
 	if !dw.params.NoClose {
 		defer close(ch)
@@ -128,6 +138,10 @@ func (dw *Watcher) Watch(ctx context.Context, ch chan<- Message) error {
 	return errors.Trace(err)
 }
 
+// WatchAsync calls Watch in a separate goroutine and returns a channel that
+// will return an error upon completion. The resulting channel is buffered so
+// it does not need to be read from. The ch will be closed only when
+// WatcherParams.NoClose is false.
 func (dw *Watcher) WatchAsync(ctx context.Context, ch chan<- Message) <-chan error {
 	errCh := make(chan error, 1)
 

@@ -22,6 +22,9 @@ type ProcessorLog struct {
 	pool sync.Pool
 }
 
+// Assert that ProcessorLog implements Processor.
+var _ Processor = &ProcessorLog{}
+
 // NewProcessorLog creates a new instance of ProcessorLog.
 func NewProcessorLog(formatter Formatter, output io.Writer) *ProcessorLog {
 	return &ProcessorLog{

@@ -44,7 +44,7 @@ func main2(argv []string) error {
 			continue
 		}
 
-		watcher, err := guardlog.NewWatcherFromConfig(logger, persister, config)
+		watcher, err := guardlog.NewReaderFromConfig(logger, persister, config)
 		if err != nil {
 			errCh <- errors.Trace(err)
 			continue

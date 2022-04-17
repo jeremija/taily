@@ -11,11 +11,13 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+// Config describes the main YAML config file.
 type Config struct {
 	Watchers  []WatcherConfig `yaml:"watchers"`
 	Persister PersisterConfig `yaml:"persister"`
 }
 
+// NewConfigFromFile opens the filename and tries to decode the config YAML.
 func NewConfigFromFile(filename string) (*Config, error) {
 	f, err := os.Open(filename)
 	if err != nil {
@@ -29,6 +31,7 @@ func NewConfigFromFile(filename string) (*Config, error) {
 	return config, errors.Trace(err)
 }
 
+// NewConfigFromReader decodes the YAML config from reader.
 func NewConfigFromReader(reader io.Reader) (*Config, error) {
 	var config Config
 
@@ -37,12 +40,14 @@ func NewConfigFromReader(reader io.Reader) (*Config, error) {
 	return &config, errors.Trace(err)
 }
 
+// NewConfigFromEnv reads the YAML config from the environment variable.
 func NewConfigFromEnv(env string) (*Config, error) {
 	config, err := NewConfigFromString(os.Getenv(env))
 
 	return config, errors.Trace(err)
 }
 
+// NewConfigFromString reads the YAML config from a string value.
 func NewConfigFromString(str string) (*Config, error) {
 	var config Config
 
@@ -51,29 +56,35 @@ func NewConfigFromString(str string) (*Config, error) {
 	return &config, errors.Trace(err)
 }
 
+// WatcherConfig contains configuration for a specific watcher.
 type WatcherConfig struct {
-	Name       WatcherName       `yaml:"name"`
+	Name       ReaderName        `yaml:"name"`
 	Processors []ProcessorConfig `yaml:"processors"`
 }
 
+// ProcessorConfig contains configuration for a specific processor.
 type ProcessorConfig struct {
 	Name string             `yaml:"name"`
 	Log  ProcessorLogConfig `yaml:"log"`
 }
 
+// ProcessorLogConfig contains configuration for ProcessorLog.
 type ProcessorLogConfig struct {
 	Format string `json:"format"`
 }
 
+// PersisterConfig contains configuration for Persister.
 type PersisterConfig struct {
 	Name string              `yaml:"name"`
 	File PersisterFileConfig `yaml:"file"`
 }
 
+// PersisterFileConfig contains configuration for PersisterFile.
 type PersisterFileConfig struct {
 	Dir string `yaml:"dir"`
 }
 
+// NewProcessorsFromConfig reads configs and creates Processors.
 func NewProcessorsFromConfig(configs []ProcessorConfig) (Processors, error) {
 	processors := make(Processors, len(configs))
 
@@ -88,6 +99,7 @@ func NewProcessorsFromConfig(configs []ProcessorConfig) (Processors, error) {
 	return processors, nil
 }
 
+// NewProcessorFromConfig reads config and creates a Processor.
 func NewProcessorFromConfig(config ProcessorConfig) (Processor, error) {
 	switch config.Name {
 	case "log":
@@ -98,6 +110,7 @@ func NewProcessorFromConfig(config ProcessorConfig) (Processor, error) {
 	}
 }
 
+// NewProcessorLogFromConfig creates a ProcessorLog from config.
 func NewProcessorLogFromConfig(config ProcessorLogConfig) (Processor, error) {
 	var f Formatter
 
@@ -113,6 +126,7 @@ func NewProcessorLogFromConfig(config ProcessorLogConfig) (Processor, error) {
 	return NewProcessorLog(f, os.Stdout), nil
 }
 
+// NewPersisterFromConfig cretaes a new Persister from config.
 func NewPersisterFromConfig(config PersisterConfig) (Persister, error) {
 	switch config.Name {
 	case "noop":
@@ -124,7 +138,8 @@ func NewPersisterFromConfig(config PersisterConfig) (Persister, error) {
 	}
 }
 
-func NewWatcherFromConfig(
+// NewReaderFromConfig creates a new Reader from config.
+func NewReaderFromConfig(
 	logger log.Logger,
 	persister Persister,
 	config WatcherConfig,
@@ -135,7 +150,7 @@ func NewWatcherFromConfig(
 	}
 
 	switch config.Name {
-	case WatcherNameJournald:
+	case ReaderNameJournald:
 		journal, err := sdjournal.NewJournal()
 		if err != nil {
 			return nil, errors.Trace(err)
@@ -148,7 +163,7 @@ func NewWatcherFromConfig(
 
 		return NewJournald(params), nil
 
-	case WatcherNameDocker:
+	case ReaderNameDocker:
 		cl, err := client.NewClientWithOpts(
 			client.FromEnv,
 		)
@@ -168,9 +183,12 @@ func NewWatcherFromConfig(
 	}
 }
 
-type WatcherName string
+// ReaderName describes a watcher.
+type ReaderName string
 
 const (
-	WatcherNameDocker   WatcherName = "docker"
-	WatcherNameJournald WatcherName = "journald"
+	// ReaderNameDocker describes the Docker watcher.
+	ReaderNameDocker ReaderName = "docker"
+	// ReaderNameJournald describes the Journald watcher.
+	ReaderNameJournald ReaderName = "journald"
 )
