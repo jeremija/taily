@@ -1,19 +1,25 @@
 ---
+actions:
+  action_log:
+    type: log
+    log:
+      format: json
 persister:
-  name: file
+  type: file
   file:
     dir: ./state/
 processors:
   proc_log:
-    name: log
+    type: any
+    action: action_log
     log:
       format: json
 watchers:
-  - name: journald
+  - type: journald
     processors:
       - proc_log
     initial_state:
       timestamp: "2022-04-01T00:00:00Z"
-  - name: docker
+  - type: docker
     processors:
       - proc_log

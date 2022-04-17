@@ -50,12 +50,17 @@ func main2(argv []string) error {
 		logger.Info("Tearing down", nil)
 	}()
 
+	actionsMap, err := taily.NewActionsMap(config.Actions)
+	if err != nil {
+		return errors.Trace(err)
+	}
+
 	persister, err := taily.NewPersisterFromConfig(config.Persister)
 	if err != nil {
 		return errors.Trace(err)
 	}
 
-	processorsMap, err := taily.NewProcessorsMap(config.Processors)
+	processorsMap, err := taily.NewProcessorsMap(config.Processors, actionsMap)
 	if err != nil {
 		return errors.Trace(err)
 	}
@@ -63,13 +68,13 @@ func main2(argv []string) error {
 	errCh := make(chan error, len(config.Watchers))
 
 	for _, config := range config.Watchers {
-		processor, err := taily.NewProcessorsFromMap(processorsMap, config.Processors)
+		newProcessor, err := taily.NewProcessorsFromMap(processorsMap, config.Processors)
 		if err != nil {
 			errCh <- errors.Trace(err)
 			continue
 		}
 
-		watcher, err := taily.NewReaderFromConfig(logger, persister, config)
+		watcher, err := taily.NewReaderFromConfig(logger, persister, newProcessor, config)
 		if err != nil {
 			errCh <- errors.Trace(err)
 			continue
@@ -82,21 +87,15 @@ func main2(argv []string) error {
 			InitialState: config.InitialState,
 		})
 
+		pipeline := taily.NewPipeline(taily.PipelineParams{
+			Logger:       logger,
+			Watcher:      dw,
+			NewProcessor: newProcessor,
+			BufferSize:   0,
+		})
+
 		go func() {
-			ch := make(chan taily.Message)
-
-			localErrCh := dw.WatchAsync(ctx, ch)
-
-			for message := range ch {
-				if err := processor.ProcessMessage(message); err != nil {
-					// Do not exit if we fail to process. Doing so would just stop
-					// reading logs altogether.
-					logger.Error("Failed to process message", err, nil)
-				}
-			}
-
-			// Post error only until we finished processing messages.
-			errCh <- errors.Trace(<-localErrCh)
+			errCh <- errors.Trace(pipeline.ProcessPipeline(ctx))
 		}()
 	}
 

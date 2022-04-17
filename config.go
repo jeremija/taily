@@ -14,6 +14,7 @@ import (
 // Config describes the main YAML config file.
 type Config struct {
 	Watchers   []WatcherConfig            `yaml:"watchers"`
+	Actions    map[string]ActionConfig    `yaml:"actions"`
 	Processors map[string]ProcessorConfig `yaml:"processors"`
 	Persister  PersisterConfig            `yaml:"persister"`
 }
@@ -59,25 +60,38 @@ func NewConfigFromString(str string) (*Config, error) {
 
 // WatcherConfig contains configuration for a specific watcher.
 type WatcherConfig struct {
-	Name         ReaderName `yaml:"name"`
+	Type         ReaderType `yaml:"type"`
 	Processors   []string   `yaml:"processors"`
 	InitialState State      `yaml:"initial_state"`
 }
 
 // ProcessorConfig contains configuration for a specific processor.
 type ProcessorConfig struct {
-	Name string             `yaml:"name"`
-	Log  ProcessorLogConfig `yaml:"log"`
+	Type    string                 `yaml:"type"`
+	Action  string                 `yaml:"action"`
+	Matcher ProcessorMatcherConfig `yaml:"log"`
+}
+
+// ProcessorMatcherConfig contains cofiguration for ProcessorMatcher.
+type ProcessorMatcherConfig struct {
+	Start MatcherConfig `yaml:"start"`
+	End   MatcherConfig `yaml:"end"`
+}
+
+// MatcherConfig contains configuration for Matcher.
+type MatcherConfig struct {
+	Type    string `yaml:"type"`
+	Pattern string `yaml:"pattern"`
 }
 
 // ProcessorLogConfig contains configuration for ProcessorLog.
-type ProcessorLogConfig struct {
-	Format string `json:"format"`
+type ProcessorAnyConfig struct {
+	Action string `json:"action"`
 }
 
 // PersisterConfig contains configuration for Persister.
 type PersisterConfig struct {
-	Name string              `yaml:"name"`
+	Type string              `yaml:"type"`
 	File PersisterFileConfig `yaml:"file"`
 }
 
@@ -86,50 +100,33 @@ type PersisterFileConfig struct {
 	Dir string `yaml:"dir"`
 }
 
-func NewProcessorsMap(configs map[string]ProcessorConfig) (map[string]Processor, error) {
-	ret := make(map[string]Processor, len(configs))
+func NewActionsMap(configs map[string]ActionConfig) (map[string]Action, error) {
+	ret := make(map[string]Action, len(configs))
 
-	for procName, procConfig := range configs {
-		processor, err := NewProcessorFromConfig(procConfig)
+	for name, actionConfig := range configs {
+		action, err := NewActionFromConfig(actionConfig)
 		if err != nil {
 			return nil, errors.Trace(err)
 		}
 
-		ret[procName] = processor
+		ret[name] = action
 	}
 
 	return ret, nil
 }
 
-// NewProcessorsFromMap reads configs and creates Processors.
-func NewProcessorsFromMap(processorsMap map[string]Processor, names []string) (Processors, error) {
-	processors := make(Processors, len(processorsMap))
-
-	for i, name := range names {
-		proc, ok := processorsMap[name]
-		if !ok {
-			return nil, errors.Errorf("processor configuration not found: %q", name)
-		}
-
-		processors[i] = proc
-	}
-
-	return processors, nil
-}
-
-// NewProcessorFromConfig reads config and creates a Processor.
-func NewProcessorFromConfig(config ProcessorConfig) (Processor, error) {
-	switch config.Name {
+func NewActionFromConfig(config ActionConfig) (Action, error) {
+	switch config.Type {
 	case "log":
-		p, err := NewProcessorLogFromConfig(config.Log)
-		return p, errors.Trace(err)
+		action, err := NewActionLogFromConfig(config.Log)
+
+		return action, errors.Trace(err)
 	default:
-		return nil, errors.Errorf("unknown processor: %q", config.Name)
+		return nil, errors.Errorf("unknown action: %q", config.Type)
 	}
 }
 
-// NewProcessorLogFromConfig creates a ProcessorLog from config.
-func NewProcessorLogFromConfig(config ProcessorLogConfig) (Processor, error) {
+func NewActionLogFromConfig(config ActionLogConfig) (*ActionLog, error) {
 	var f Formatter
 
 	switch config.Format {
@@ -141,18 +138,109 @@ func NewProcessorLogFromConfig(config ProcessorLogConfig) (Processor, error) {
 		return nil, errors.Errorf("unknown format: %q", config.Format)
 	}
 
-	return NewProcessorLog(f, os.Stdout), nil
+	return NewActionLog(f, os.Stdout), nil
+}
+
+func NewProcessorsMap(
+	configs map[string]ProcessorConfig,
+	actionsMap map[string]Action,
+) (map[string]ProcessorFactory, error) {
+	ret := make(map[string]ProcessorFactory, len(configs))
+
+	for procName, procConfig := range configs {
+		ret[procName] = func() (Processor, error) {
+			processor, err := NewProcessorFromConfig(procConfig, actionsMap)
+
+			return processor, errors.Trace(err)
+		}
+	}
+
+	return ret, nil
+}
+
+// NewProcessorsFromMap reads configs and creates Processors.
+func NewProcessorsFromMap(processorsMap map[string]ProcessorFactory, names []string) (ProcessorFactory, error) {
+	factories := make([]ProcessorFactory, len(processorsMap))
+
+	for i, name := range names {
+		proc, ok := processorsMap[name]
+		if !ok {
+			return nil, errors.Errorf("processor configuration not found: %q", name)
+		}
+
+		factories[i] = proc
+	}
+
+	newProcessor := func() (Processor, error) {
+		ret := make(Processors, len(names))
+
+		for i, newProcessor := range factories {
+			var err error
+
+			ret[i], err = newProcessor()
+			if err != nil {
+				return nil, errors.Trace(err)
+			}
+		}
+
+		return ret, nil
+	}
+
+	return newProcessor, nil
+}
+
+// NewProcessorFromConfig reads config and creates a Processor.
+func NewProcessorFromConfig(config ProcessorConfig, actionsMap map[string]Action) (Processor, error) {
+	action, ok := actionsMap[config.Action]
+	if !ok {
+		return nil, errors.Errorf("undefined action: %q", config.Action)
+	}
+
+	switch config.Type {
+	case "any":
+		return NewProcessorAny(action), nil
+	case "matcher":
+		start, err := NewMatcherFromConfig(config.Matcher.Start)
+		if err != nil {
+			return nil, errors.Trace(err)
+		}
+
+		end, err := NewMatcherFromConfig(config.Matcher.End)
+		if err != nil {
+			return nil, errors.Trace(err)
+		}
+
+		return NewProcessorMatcher(ProcessorMatcherParams{
+			Start:  start,
+			End:    end,
+			Action: action,
+		}), nil
+	default:
+		return nil, errors.Errorf("unknown processor: %q", config.Type)
+	}
+}
+
+func NewMatcherFromConfig(config MatcherConfig) (Matcher, error) {
+	switch config.Type {
+	case "substring":
+		return NewMatcherSubstring(config.Pattern), nil
+	case "regexp":
+		m, err := NewMatcherRegexp(config.Pattern)
+		return m, errors.Trace(err)
+	default:
+		return nil, errors.Errorf("unknown matcher: %q", config.Type)
+	}
 }
 
 // NewPersisterFromConfig cretaes a new Persister from config.
 func NewPersisterFromConfig(config PersisterConfig) (Persister, error) {
-	switch config.Name {
+	switch config.Type {
 	case "noop":
 		return NewPersisterNoop(), nil
 	case "file":
 		return NewPersisterFile(config.File.Dir), nil
 	default:
-		return nil, errors.Errorf("unknown persister: %q", config.Name)
+		return nil, errors.Errorf("unknown persister: %q", config.Type)
 	}
 }
 
@@ -160,15 +248,16 @@ func NewPersisterFromConfig(config PersisterConfig) (Persister, error) {
 func NewReaderFromConfig(
 	logger log.Logger,
 	persister Persister,
+	newProcessor ProcessorFactory,
 	config WatcherConfig,
 ) (Reader, error) {
 	watcherParams := ReaderParams{
-		ReaderID: ReaderID(config.Name),
+		ReaderID: ReaderID(config.Type),
 		Logger:   logger,
 	}
 
-	switch config.Name {
-	case ReaderNameJournald:
+	switch config.Type {
+	case ReaderTypeJournald:
 		params := JournaldParams{
 			ReaderParams: watcherParams,
 			NewJournal:   sdjournal.NewJournal,
@@ -176,7 +265,7 @@ func NewReaderFromConfig(
 
 		return NewJournald(params), nil
 
-	case ReaderNameDocker:
+	case ReaderTypeDocker:
 		cl, err := client.NewClientWithOpts(
 			client.FromEnv,
 		)
@@ -188,20 +277,30 @@ func NewReaderFromConfig(
 			ReaderParams: watcherParams,
 			Client:       cl,
 			Persister:    persister,
+			NewProcessor: newProcessor,
 		}
 
 		return NewDocker(params), nil
 	default:
-		return nil, errors.Errorf("unfamiliar watcher name: %q", config.Name)
+		return nil, errors.Errorf("unfamiliar watcher name: %q", config.Type)
 	}
 }
 
-// ReaderName describes a watcher.
-type ReaderName string
+type ActionConfig struct {
+	Type string
+	Log  ActionLogConfig
+}
+
+type ActionLogConfig struct {
+	Format string
+}
+
+// ReaderType describes a watcher.
+type ReaderType string
 
 const (
-	// ReaderNameDocker describes the Docker watcher.
-	ReaderNameDocker ReaderName = "docker"
-	// ReaderNameJournald describes the Journald watcher.
-	ReaderNameJournald ReaderName = "journald"
+	// ReaderTypeDocker describes the Docker watcher.
+	ReaderTypeDocker ReaderType = "docker"
+	// ReaderTypeJournald describes the Journald watcher.
+	ReaderTypeJournald ReaderType = "journald"
 )

@@ -33,9 +33,10 @@ func NewDocker(params DockerParams) *Docker {
 
 // DockerParams contains parameters for NewDocker.
 type DockerParams struct {
-	ReaderParams                // ReaderParams contains common reader params.
-	Client       *client.Client // Client is the docker client to use.
-	Persister    Persister      // Persister to load/save container state.
+	ReaderParams                  // ReaderParams contains common reader params.
+	Client       *client.Client   // Client is the docker client to use.
+	Persister    Persister        // Persister to load/save container state.
+	NewProcessor ProcessorFactory // NewProcessor creates a Processor for all messages.
 }
 
 // formatDockerSince formats a ts for the ContainerLogs and Events Since
@@ -153,20 +154,26 @@ func (d *Docker) ReadLogs(ctx context.Context, params ReadLogsParams) error {
 			}
 
 			dwParams := WatcherParams{
-				Persister: d.params.Persister,
-				Reader:    dc,
-				Logger:    logger,
-				NoClose:   true,
+				Persister:    d.params.Persister,
+				Reader:       dc,
+				Logger:       logger,
+				InitialState: State{}, // TODO make this configurable.
 			}
 
 			dw := NewWatcher(dwParams)
 
-			if err := dw.Watch(ctx, params.Ch); err != nil {
+			pipeline := NewPipeline(PipelineParams{
+				Logger:       logger,
+				Watcher:      dw,
+				NewProcessor: d.params.NewProcessor,
+				BufferSize:   0,
+			})
+
+			if err := pipeline.ProcessPipeline(ctx); err != nil {
 				if !IsError(err, context.Canceled) {
 					logger.Error("Watch failed", err, nil)
+					return
 				}
-
-				return
 			}
 
 			logger.Info("Watch done", nil)

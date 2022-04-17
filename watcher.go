@@ -26,7 +26,6 @@ type WatcherParams struct {
 	Persister    Persister  // Persister to load and store state with.
 	Reader       Reader     // Reader to read logs from.
 	Logger       log.Logger // Logger to use.
-	NoClose      bool       //NoClose will prevent Watch from closing ch on exit.
 	InitialState State
 }
 
@@ -114,12 +113,9 @@ func (dw *Watcher) persistState(state State) {
 }
 
 // Watch loads the state and invokes the Reader.ReadLogs. It persists the state
-// after the reading is done. The ch will be closed after reading is complete
-// only if WatcherParams.NoClose is false.
+// after the reading is done. The ch will be closed after reading is complete.
 func (dw *Watcher) Watch(ctx context.Context, ch chan<- Message) (err error) {
-	if !dw.params.NoClose {
-		defer close(ch)
-	}
+	defer close(ch)
 
 	readerID := dw.params.Reader.ReaderID()
 	logger := dw.params.Logger
@@ -151,8 +147,7 @@ func (dw *Watcher) Watch(ctx context.Context, ch chan<- Message) (err error) {
 
 // WatchAsync calls Watch in a separate goroutine and returns a channel that
 // will return an error upon completion. The resulting channel is buffered so
-// it does not need to be read from. The ch will be closed only when
-// WatcherParams.NoClose is false.
+// it does not need to be read from.
 func (dw *Watcher) WatchAsync(ctx context.Context, ch chan<- Message) <-chan error {
 	errCh := make(chan error, 1)
 

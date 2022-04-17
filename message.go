@@ -28,7 +28,7 @@ func NewMessage(
 		fields[k] = v
 	}
 
-	fields["MESSAGE"] = text
+	fields[MessageKey] = text
 
 	return Message{
 		Timestamp: timestamp,
@@ -36,6 +36,12 @@ func NewMessage(
 		Fields:    fields,
 	}
 }
+
+func (m *Message) Text() string {
+	return m.Fields[MessageKey]
+}
+
+const MessageKey = "MESSAGE"
 
 // Source describes the message source.
 type Source int
