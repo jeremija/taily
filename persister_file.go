@@ -11,22 +11,29 @@ import (
 	"github.com/juju/errors"
 )
 
+// PersisterFile is an implementation of Persister that keeps track of all
+// state on local disk.
 type PersisterFile struct {
 	dir string
 }
 
+// NewPersisterFile creates a new instance of PersisterFile. The dir parameter
+// must be writable by the current process.
 func NewPersisterFile(dir string) *PersisterFile {
 	return &PersisterFile{
 		dir: dir,
 	}
 }
 
+// Assert that PersisterFile implements Persister.
 var _ Persister = PersisterFile{}
 
+// filename returns a filename for watcherID.
 func (p PersisterFile) filename(watcherID ReaderID) string {
 	return path.Join(p.dir, string(watcherID)+".json")
 }
 
+// LoadState implements Persister.
 func (p PersisterFile) LoadState(ctx context.Context, watcherID ReaderID) (State, error) {
 	f, err := os.Open(p.filename(watcherID))
 	if err != nil {
@@ -48,6 +55,7 @@ func (p PersisterFile) LoadState(ctx context.Context, watcherID ReaderID) (State
 	return state, nil
 }
 
+// SaveState implements Persister.
 func (p PersisterFile) SaveState(ctx context.Context, watcherID ReaderID, state State) error {
 	if err := os.MkdirAll(p.dir, 0755); err != nil {
 		return errors.Trace(err)

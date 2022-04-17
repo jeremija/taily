@@ -57,7 +57,12 @@ type WatcherConfig struct {
 }
 
 type ProcessorConfig struct {
-	Name string `yaml:"name"`
+	Name string             `yaml:"name"`
+	Log  ProcessorLogConfig `yaml:"log"`
+}
+
+type ProcessorLogConfig struct {
+	Format string `json:"format"`
 }
 
 type PersisterConfig struct {
@@ -86,10 +91,26 @@ func NewProcessorsFromConfig(configs []ProcessorConfig) (Processors, error) {
 func NewProcessorFromConfig(config ProcessorConfig) (Processor, error) {
 	switch config.Name {
 	case "log":
-		return NewProcessorLog(), nil
+		p, err := NewProcessorLogFromConfig(config.Log)
+		return p, errors.Trace(err)
 	default:
 		return nil, errors.Errorf("unknown processor: %q", config.Name)
 	}
+}
+
+func NewProcessorLogFromConfig(config ProcessorLogConfig) (Processor, error) {
+	var f Formatter
+
+	switch config.Format {
+	case "plain":
+		f = NewFormatterPlain()
+	case "json":
+		f = NewFormatterJSON()
+	default:
+		return nil, errors.Errorf("unknown format: %q", config.Format)
+	}
+
+	return NewProcessorLog(f, os.Stdout), nil
 }
 
 func NewPersisterFromConfig(config PersisterConfig) (Persister, error) {

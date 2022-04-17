@@ -10,3 +10,5 @@ watchers:
   - name: docker
     processors:
       - name: log
+        log:
+          format: json

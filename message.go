@@ -3,11 +3,11 @@ package guardlog
 import "time"
 
 type Message struct {
-	Timestamp time.Time
-	Cursor    string
-	Fields    Fields
-	Source    Source
-	ReaderID  ReaderID
+	Timestamp time.Time `json:"ts"`
+	Cursor    string    `json:"cursor,omitempty"`
+	Fields    Fields    `json:"fields,omitempty"`
+	Source    Source    `json:"source,omitempty"`
+	ReaderID  ReaderID  `json:"reader_id,omitempty"`
 }
 
 type Fields map[string]string
