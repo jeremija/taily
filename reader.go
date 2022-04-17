@@ -18,6 +18,8 @@ type Reader interface {
 	// ReaderID returns the reader's ID.
 	ReaderID() ReaderID
 	// ReadLogs reads logs until context is done, or an error is encountered.
+	// Implementations must not close the ReadLogsParams.Ch as that is done
+	// conditionally in Watcher.
 	ReadLogs(context.Context, ReadLogsParams) error
 }
 
@@ -29,8 +31,8 @@ type ReaderParams struct {
 
 // ReadLogsParams contains parameters for Reader.ReadLogs.
 type ReadLogsParams struct {
-	State State
-	Ch    chan<- Message
+	State State          // State for resuming reading.
+	Ch    chan<- Message // Ch is a channel to write the messages to.
 }
 
 // ReadLogsParams is a convenience wrapper that tries to send to Ch until the
