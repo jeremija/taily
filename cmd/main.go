@@ -53,18 +53,25 @@ func main2(argv []string) error {
 		dw := guardlog.NewDaemonWatcher(guardlog.DaemonWatcherParams{
 			Persister: persister,
 			Watcher:   watcher,
+			Logger:    logger,
 		})
 
 		go func() {
 			ch := make(chan guardlog.Message)
+			localErrCh := make(chan error, 1)
 
 			go func() {
-				errCh <- errors.Trace(dw.WatchDaemon(ctx, logger, ch))
+				localErrCh <- errors.Trace(dw.WatchDaemon(ctx, ch))
 			}()
 
 			for message := range ch {
-				processor.ProcessMessage(message)
+				if err := processor.ProcessMessage(message); err != nil {
+					logger.Error("Failed to process message", err, nil)
+				}
 			}
+
+			// Post error only until we've finished processing messages.
+			errCh <- errors.Trace(<-localErrCh)
 		}()
 	}
 

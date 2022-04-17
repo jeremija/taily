@@ -44,7 +44,7 @@ func (p PersisterFile) LoadState(ctx context.Context, watcherID WatcherID) (Stat
 		return State{}, errors.Trace(err)
 	}
 
-	return State{}, nil
+	return state, nil
 }
 
 func (p PersisterFile) SaveState(ctx context.Context, watcherID WatcherID, state State) error {

@@ -22,9 +22,7 @@ type JournaldParams struct {
 func NewJournald(params JournaldParams) *Journald {
 	params.Logger = params.Logger.WithNamespaceAppended("journald")
 
-	params.Logger = params.Logger.WithCtx(log.Ctx{
-		"daemon_id": params.WatcherID,
-	})
+	params.Logger = LoggerWithWatcherID(params.Logger, params.WatcherID)
 
 	return &Journald{
 		params: params,

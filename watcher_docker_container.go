@@ -22,8 +22,9 @@ type DockerContainer struct {
 func NewDockerContainer(params DockerContainerParams) *DockerContainer {
 	params.Logger = params.Logger.WithNamespaceAppended("docker_container")
 
+	params.Logger = LoggerWithWatcherID(params.Logger, params.WatcherID)
+
 	params.Logger = params.Logger.WithCtx(log.Ctx{
-		"daemon_id":           params.WatcherID,
 		"docker_container_id": params.ContainerID,
 	})
 
@@ -43,6 +44,9 @@ func (d *DockerContainer) WatcherID() WatcherID {
 }
 
 func (d *DockerContainer) Watch(ctx context.Context, params WatchParams) error {
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
 	state := params.State
 
 	inspect, err := d.params.Client.ContainerInspect(ctx, d.params.ContainerID)
@@ -72,10 +76,13 @@ func (d *DockerContainer) Watch(ctx context.Context, params WatchParams) error {
 	errCh := make(chan error, 2)
 
 	if !isTTY {
-		errCh := make(chan error, 3)
+		errCh = make(chan error, 3)
 
 		stdoutReader, stdoutWriter := io.Pipe()
 		stderrReader, stderrWriter := io.Pipe()
+
+		stdout = stdoutReader
+		stderr = stderrReader
 
 		go func() {
 			defer stdoutReader.Close()
@@ -88,23 +95,35 @@ func (d *DockerContainer) Watch(ctx context.Context, params WatchParams) error {
 	}
 
 	go func() {
-		errCh <- errors.Trace(Scan(ctx, watcherID, SourceStdout, params, stdout))
+		errCh <- errors.Trace(ScanDockerContainer(ctx, watcherID, SourceStdout, params, stdout))
 	}()
 
 	go func() {
-		errCh <- errors.Trace(Scan(ctx, watcherID, SourceStderr, params, stderr))
+		errCh <- errors.Trace(ScanDockerContainer(ctx, watcherID, SourceStderr, params, stderr))
 	}()
 
-	for i := 0; i < 3; i++ {
-		if readErr := <-errCh; err == nil && readErr != nil {
-			err = errors.Trace(readErr)
+	var retErr error
+
+	for i := 0; i < cap(errCh); i++ {
+		if err := <-errCh; err != nil {
+			d.params.Logger.Error("Read error", err, nil)
+
+			if retErr == nil {
+				retErr = errors.Trace(err)
+			}
 		}
 	}
 
-	return errors.Trace(err)
+	return errors.Trace(retErr)
 }
 
-func Scan(ctx context.Context, watcherID WatcherID, source Source, params WatchParams, reader io.Reader) error {
+func ScanDockerContainer(
+	ctx context.Context,
+	watcherID WatcherID,
+	source Source,
+	params WatchParams,
+	reader io.Reader,
+) error {
 	if reader == nil {
 		return nil
 	}

@@ -3,6 +3,7 @@ package guardlog
 import (
 	"context"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/docker/docker/api/types"
@@ -19,9 +20,7 @@ type Docker struct {
 func NewDocker(params DockerParams) *Docker {
 	params.Logger = params.Logger.WithNamespaceAppended("docker")
 
-	params.Logger = params.Logger.WithCtx(log.Ctx{
-		"daemon_id": params.WatcherID,
-	})
+	params.Logger = LoggerWithWatcherID(params.Logger, params.WatcherID)
 
 	return &Docker{
 		params: params,
@@ -50,6 +49,10 @@ func (d *Docker) WatcherID() WatcherID {
 func (d *Docker) Watch(ctx context.Context, params WatchParams) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
+
+	var wg sync.WaitGroup
+
+	defer wg.Wait()
 
 	state := params.State
 
@@ -82,6 +85,8 @@ func (d *Docker) Watch(ctx context.Context, params WatchParams) error {
 
 	dockerContainers := map[string]*containerWithDone{}
 
+	containerDoneCh := make(chan string)
+
 	watchContainer := func(containerID string) {
 		if _, ok := dockerContainers[containerID]; ok {
 			return
@@ -89,11 +94,11 @@ func (d *Docker) Watch(ctx context.Context, params WatchParams) error {
 
 		dcDaemonID := d.params.WatcherID + WatcherID(":"+containerID)
 
-		daemonParams := d.params.WatcherParams
-		daemonParams.WatcherID = dcDaemonID
+		watcherParams := d.params.WatcherParams
+		watcherParams.WatcherID = dcDaemonID
 
 		dockerContainerParams := DockerContainerParams{
-			WatcherParams: d.params.WatcherParams,
+			WatcherParams: watcherParams,
 			Client:        d.params.Client,
 			ContainerID:   containerID,
 		}
@@ -114,8 +119,18 @@ func (d *Docker) Watch(ctx context.Context, params WatchParams) error {
 			container: dc,
 		}
 
+		wg.Add(1)
+
 		go func() {
+			defer wg.Done()
 			defer close(done)
+
+			defer func() {
+				select {
+				case containerDoneCh <- containerID:
+				case <-ctx.Done():
+				}
+			}()
 
 			if prevContainer != nil {
 				logger.Info("Waiting for previous container to terminate", nil)
@@ -131,27 +146,27 @@ func (d *Docker) Watch(ctx context.Context, params WatchParams) error {
 			dwParams := DaemonWatcherParams{
 				Persister: d.params.Persister,
 				Watcher:   dc,
+				Logger:    logger,
+				NoClose:   true,
 			}
 
 			dw := NewDaemonWatcher(dwParams)
 
-			go func() {
-				logger.Info("Watching", nil)
+			logger.Info("Watching", nil)
 
-				if err := dw.WatchDaemon(ctx, d.params.Logger, params.Ch); err != nil {
-					logger.Error("Watch failed", err, nil)
+			if err := dw.WatchDaemon(ctx, params.Ch); err != nil {
+				logger.Error("Watch failed", err, nil)
 
-					return
-				}
+				return
+			}
 
-				logger.Info("Watch done", nil)
-			}()
+			logger.Info("Watch done", nil)
 		}()
 	}
 
-	// removeContainer := func(containerID string) {
-	// 	delete(dockerContainers, containerID)
-	// }
+	removeContainer := func(containerID string) {
+		delete(dockerContainers, containerID)
+	}
 
 	for _, container := range containers {
 		watchContainer(container.ID)
@@ -186,12 +201,15 @@ func (d *Docker) Watch(ctx context.Context, params WatchParams) error {
 				watchContainer(containerID)
 
 			case "stop":
-				// containerID := ev.Actor.ID
-				// removeContainer(containerID)
+				// Do not remove the container here so we can process the logs until
+				// the shutdown. Instead, we'll remove it once containerDoneCh is
+				// written to.
 
 			default:
 				return errors.Errorf("unexpected action: %q", ev.Action)
 			}
+		case containerID := <-containerDoneCh:
+			removeContainer(containerID)
 		case err := <-errCh:
 			return errors.Trace(err)
 		case <-ctx.Done():
