@@ -3,14 +3,16 @@
 Taily is a configurable system utility that can process messages and act on
 them. The goal is to make it able to send alerts on errors.
 
-It currently supports reading streams from:
+# Features
 
-- `systemd journald`
-- `docker`
+- Read log streams from `systemd journald` and `docker`
+- Resume reading after a shutdown
+- Create custom processing rules
+- Send notifications when certain matches are found (e.g. Slack or Telegram)
 
-It is smart enough to remember the previous state and resume upon restart.
+Work in progress.
 
-Work in progress. Current work is being done on implement more `Processor`s.
+# Configuration
 
 See sample config file: [config.yml](config.yml) (subject to change until v2).
 
