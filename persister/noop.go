@@ -2,7 +2,6 @@ package persister
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/jeremija/taily/types"
 )
@@ -26,6 +25,5 @@ func (n Noop) LoadState(ctx context.Context, readerID types.ReaderID) (types.Sta
 
 // SaveState implements Persister.
 func (n Noop) SaveState(ctx context.Context, readerID types.ReaderID, state types.State) error {
-	fmt.Println("SaveState", readerID, state)
 	return nil
 }

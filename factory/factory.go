@@ -17,11 +17,11 @@ import (
 	"github.com/peer-calls/log"
 )
 
-func NewActionsMap(cfgs map[string]config.Action) (map[string]types.Action, error) {
+func NewActionsMap(logger log.Logger, cfgs map[string]config.Action) (map[string]types.Action, error) {
 	ret := make(map[string]types.Action, len(cfgs))
 
 	for name, actionConfig := range cfgs {
-		action, err := NewActionFromConfig(actionConfig)
+		action, err := NewAction(logger, actionConfig)
 		if err != nil {
 			return nil, errors.Trace(err)
 		}
@@ -32,10 +32,14 @@ func NewActionsMap(cfgs map[string]config.Action) (map[string]types.Action, erro
 	return ret, nil
 }
 
-func NewActionFromConfig(cfg config.Action) (types.Action, error) {
+func NewAction(logger log.Logger, cfg config.Action) (types.Action, error) {
 	switch cfg.Type {
 	case "log":
-		action, err := NewActionLogFromConfig(cfg.Log)
+		action, err := NewActionLog(cfg.Log)
+
+		return action, errors.Trace(err)
+	case "notify":
+		action, err := NewActionNotify(logger, cfg.Notify)
 
 		return action, errors.Trace(err)
 	default:
@@ -43,30 +47,55 @@ func NewActionFromConfig(cfg config.Action) (types.Action, error) {
 	}
 }
 
-func NewActionLogFromConfig(config config.ActionLog) (*action.Log, error) {
-	var f types.Formatter
-
-	switch config.Format {
+func NewFormatter(format string) (types.Formatter, error) {
+	switch format {
 	case "plain":
-		f = formatter.NewPlain()
+		return formatter.NewPlain(), nil
 	case "json":
-		f = formatter.NewJSON()
+		return formatter.NewJSON(), nil
 	default:
-		return nil, errors.Errorf("unknown format: %q", config.Format)
+		return nil, errors.Errorf("unknown format: %q", format)
+	}
+}
+
+func NewActionLog(cfg config.ActionLog) (*action.Log, error) {
+	f, err := NewFormatter(cfg.Format)
+	if err != nil {
+		return nil, errors.Trace(err)
 	}
 
 	return action.NewLog(f, os.Stdout), nil
 }
 
+func NewActionNotify(logger log.Logger, cfg config.ActionNotify) (*action.Notify, error) {
+	f, err := NewFormatter(cfg.Format)
+	if err != nil {
+		return nil, errors.Trace(err)
+	}
+
+	notifier, err := NewNotifier(cfg.Services)
+	if err != nil {
+		return nil, errors.Trace(err)
+	}
+
+	return action.NewNotify(action.NotifyParams{
+		Logger:       logger,
+		Formatter:    f,
+		Notifier:     notifier,
+		MaxTitleSize: cfg.MaxTitleSize,
+		MaxBodySize:  cfg.MaxBodySize,
+	}), nil
+}
+
 func NewProcessorsMap(
-	configs map[string]config.Processor,
+	cfgs map[string]config.Processor,
 	actionsMap map[string]types.Action,
 ) (map[string]processor.Factory, error) {
-	ret := make(map[string]processor.Factory, len(configs))
+	ret := make(map[string]processor.Factory, len(cfgs))
 
-	for procName, procConfig := range configs {
+	for procName, procConfig := range cfgs {
 		ret[procName] = func() (types.Processor, error) {
-			processor, err := NewProcessorFromConfig(procConfig, actionsMap)
+			processor, err := NewProcessor(procConfig, actionsMap)
 
 			return processor, errors.Trace(err)
 		}
@@ -106,8 +135,8 @@ func NewProcessorsFromMap(processorsMap map[string]processor.Factory, names []st
 	return newProcessor, nil
 }
 
-// NewProcessorFromConfig reads config and creates a Processor.
-func NewProcessorFromConfig(cfg config.Processor, actionsMap map[string]types.Action) (types.Processor, error) {
+// NewProcessor reads config and creates a Processor.
+func NewProcessor(cfg config.Processor, actionsMap map[string]types.Action) (types.Processor, error) {
 	action, ok := actionsMap[cfg.Action]
 	if !ok {
 		return nil, errors.Errorf("undefined action: %q", cfg.Action)
@@ -117,7 +146,7 @@ func NewProcessorFromConfig(cfg config.Processor, actionsMap map[string]types.Ac
 	case "any":
 		return processor.NewAny(action), nil
 	case "matcher":
-		startLine, err := NewMatcherFromConfig(cfg.Matcher.Start)
+		startLine, err := NewMatcher(cfg.Matcher.Start)
 		if err != nil {
 			return nil, errors.Trace(err)
 		}
@@ -125,7 +154,7 @@ func NewProcessorFromConfig(cfg config.Processor, actionsMap map[string]types.Ac
 		var endLine types.Matcher
 
 		if cfg.Matcher.End != nil {
-			endLine, err = NewMatcherFromConfig(cfg.Matcher.End)
+			endLine, err = NewMatcher(cfg.Matcher.End)
 			if err != nil {
 				return nil, errors.Trace(err)
 			}
@@ -144,11 +173,11 @@ func NewProcessorFromConfig(cfg config.Processor, actionsMap map[string]types.Ac
 	}
 }
 
-func NewMatchersFromConfig(configs []*config.Matcher) ([]types.Matcher, error) {
-	ret := make([]types.Matcher, len(configs))
+func NewMatchers(cfgs []*config.Matcher) ([]types.Matcher, error) {
+	ret := make([]types.Matcher, len(cfgs))
 
-	for i, config := range configs {
-		m, err := NewMatcherFromConfig(config)
+	for i, cfg := range cfgs {
+		m, err := NewMatcher(cfg)
 		if err != nil {
 			return nil, errors.Trace(err)
 		}
@@ -159,9 +188,9 @@ func NewMatchersFromConfig(configs []*config.Matcher) ([]types.Matcher, error) {
 	return ret, nil
 }
 
-// NewMatcherFromConfig creates a new Mather from config. The field is just
+// NewMatcher creates a new Mather from config. The field is just
 // used for debugging.
-func NewMatcherFromConfig(cfg *config.Matcher) (types.Matcher, error) {
+func NewMatcher(cfg *config.Matcher) (types.Matcher, error) {
 	switch cfg.Type {
 	case "string":
 		return matcher.String(cfg.String), nil
@@ -175,21 +204,21 @@ func NewMatcherFromConfig(cfg *config.Matcher) (types.Matcher, error) {
 		m, err := matcher.NewRegexp(cfg.Regexp)
 		return m, errors.Trace(err)
 	case "and":
-		m, err := NewMatchersFromConfig(cfg.And)
+		m, err := NewMatchers(cfg.And)
 		if err != nil {
 			return nil, errors.Trace(err)
 		}
 
 		return matcher.And(m), nil
 	case "or":
-		m, err := NewMatchersFromConfig(cfg.Or)
+		m, err := NewMatchers(cfg.Or)
 		if err != nil {
 			return nil, errors.Trace(err)
 		}
 
 		return matcher.Or(m), nil
 	case "not":
-		m, err := NewMatcherFromConfig(cfg.Not)
+		m, err := NewMatcher(cfg.Not)
 		if err != nil {
 			return nil, errors.Trace(err)
 		}
@@ -206,8 +235,8 @@ func NewMatcherFromConfig(cfg *config.Matcher) (types.Matcher, error) {
 	}
 }
 
-// NewPersisterFromConfig cretaes a new Persister from config.
-func NewPersisterFromConfig(cfg config.Persister) (types.Persister, error) {
+// NewPersister cretaes a new Persister from config.
+func NewPersister(cfg config.Persister) (types.Persister, error) {
 	switch cfg.Type {
 	case "noop":
 		return persister.NewNoop(), nil
@@ -218,8 +247,8 @@ func NewPersisterFromConfig(cfg config.Persister) (types.Persister, error) {
 	}
 }
 
-// NewReaderFromConfig creates a new Reader from config.
-func NewReaderFromConfig(
+// NewReader creates a new Reader from config.
+func NewReader(
 	logger log.Logger,
 	persister types.Persister,
 	newProcessor processor.Factory,

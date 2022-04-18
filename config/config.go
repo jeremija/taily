@@ -76,10 +76,30 @@ type PersisterFile struct {
 }
 
 type Action struct {
-	Type string
-	Log  ActionLog
+	Type   string       `yaml:"type"`
+	Log    ActionLog    `yaml:"log"`
+	Notify ActionNotify `yaml:"notify"`
 }
 
 type ActionLog struct {
-	Format string
+	Format string `yaml:"format"`
+}
+
+type ActionNotify struct {
+	Format       string          `yaml:"format"`
+	Services     []NotifyService `yaml:"services"`
+	MaxTitleSize int             `yaml:"max_title_size"`
+	MaxBodySize  int             `yaml:"max_body_size"`
+}
+
+type NotifyService struct {
+	Type     string `yaml:"type"`
+	Telegram struct {
+		Token     string  `yaml:"token"`
+		Receivers []int64 `yaml:"receivers"`
+	} `yaml:"telegram"`
+	Slack struct {
+		Token     string   `yaml:"token"`
+		Receivers []string `yaml:"receivers"`
+	} `yaml:"slack"`
 }

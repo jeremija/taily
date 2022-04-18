@@ -1,3 +1,4 @@
 bin/
 *.out
 state/
+*.local.yml

@@ -17,7 +17,7 @@ type Log struct {
 	output    io.Writer
 
 	mu   sync.Mutex
-	pool sync.Pool
+	pool *pool
 }
 
 var _ types.Action = &Log{}
@@ -26,35 +26,35 @@ var _ types.Action = &Log{}
 func NewLog(formatter types.Formatter, output io.Writer) *Log {
 	return &Log{
 		formatter: formatter,
-		pool: sync.Pool{
-			New: func() interface{} {
-				return &bytes.Buffer{}
-			},
-		},
-		output: output,
+		output:    output,
+		pool:      newPool(),
 	}
 }
 
 // PerformAction implements Action.
 func (a *Log) PerformAction(ctx context.Context, messages []types.Message) error {
-	buffer := a.pool.Get().(*bytes.Buffer)
+	buffer := a.pool.Get()
+	defer a.pool.Put(buffer)
 
 	var err error
 
+	if err := formatMessage(a.formatter, messages, buffer); err != nil {
+		return errors.Trace(err)
+	}
+
+	a.mu.Lock()
+	_, err = io.Copy(a.output, buffer)
+	a.mu.Unlock()
+
+	return errors.Trace(err)
+}
+
+func formatMessage(f types.Formatter, messages []types.Message, b *bytes.Buffer) error {
 	for _, message := range messages {
-		if err = a.formatter.Format(buffer, message); err != nil {
-			break
+		if err := f.Format(b, message); err != nil {
+			return errors.Trace(err)
 		}
 	}
 
-	if err == nil {
-		a.mu.Lock()
-		_, err = io.Copy(a.output, buffer)
-		a.mu.Unlock()
-	}
-
-	buffer.Reset()
-	a.pool.Put(buffer)
-
-	return errors.Trace(err)
+	return nil
 }

@@ -10,12 +10,12 @@ import (
 )
 
 func NewPipelines(logger log.Logger, cfg *config.Config) ([]*pipeline.Pipeline, error) {
-	actionsMap, err := NewActionsMap(cfg.Actions)
+	actionsMap, err := NewActionsMap(logger, cfg.Actions)
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
 
-	persister, err := NewPersisterFromConfig(cfg.Persister)
+	persister, err := NewPersister(cfg.Persister)
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
@@ -45,7 +45,7 @@ func NewPipelines(logger log.Logger, cfg *config.Config) ([]*pipeline.Pipeline, 
 			return nil, errors.Trace(err)
 		}
 
-		r, err := NewReaderFromConfig(logger, persister, newProcessor, config)
+		r, err := NewReader(logger, persister, newProcessor, config)
 		if err != nil {
 			return nil, errors.Trace(err)
 		}
