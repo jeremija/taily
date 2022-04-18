@@ -162,6 +162,10 @@ func NewMatcherFromConfig(cfg *config.Matcher) (types.Matcher, error) {
 	switch cfg.Type {
 	case "substring":
 		return matcher.Substring(cfg.Substring), nil
+	case "prefix":
+		return matcher.Prefix(cfg.Prefix), nil
+	case "suffix":
+		return matcher.Suffix(cfg.Suffix), nil
 	case "regexp":
 		m, err := matcher.NewRegexp(cfg.Regexp)
 		return m, errors.Trace(err)

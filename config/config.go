@@ -43,6 +43,8 @@ type ProcessorMatcher struct {
 type Matcher struct {
 	Type      string     `yaml:"type"`
 	Substring string     `yaml:"substring"`
+	Prefix    string     `yaml:"prefix"`
+	Suffix    string     `yaml:"suffix"`
 	Regexp    string     `yaml:"regexp"`
 	And       []*Matcher `yaml:"and"`
 	Or        []*Matcher `yaml:"or"`

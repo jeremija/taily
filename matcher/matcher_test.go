@@ -38,3 +38,19 @@ func TestNot(t *testing.T) {
 	assert.True(t, not.MatchMessage(msg("a three.")))
 	assert.False(t, not.MatchMessage(msg("a one and a two.")))
 }
+
+func TestPrefix(t *testing.T) {
+	prefix := matcher.Prefix("test")
+
+	assert.True(t, prefix.MatchMessage(msg("test")))
+	assert.True(t, prefix.MatchMessage(msg("testament")))
+	assert.False(t, prefix.MatchMessage(msg("something else")))
+}
+
+func TestSuffix(t *testing.T) {
+	prefix := matcher.Suffix("test")
+
+	assert.True(t, prefix.MatchMessage(msg("test")))
+	assert.True(t, prefix.MatchMessage(msg("attest")))
+	assert.False(t, prefix.MatchMessage(msg("something else")))
+}
