@@ -28,5 +28,11 @@ func (p Serial) ProcessMessage(ctx context.Context, message types.Message) error
 
 // Tick implements Processor.
 func (p Serial) Tick(ctx context.Context, now time.Time) error {
+	for _, proc := range p {
+		if err := proc.Tick(ctx, now); err != nil {
+			return errors.Trace(err)
+		}
+	}
+
 	return nil
 }

@@ -35,13 +35,17 @@ type Processor struct {
 
 // ProcessorMatcher contains cofiguration for ProcessorMatcher.
 type ProcessorMatcher struct {
-	Start *Matcher `yaml:"start_line"`
-	End   *Matcher `yaml:"end_line"`
+	Start      *Matcher `yaml:"start_line"`
+	End        *Matcher `yaml:"end_line"`
+	IncludeEnd bool     `yaml:"include_end"`
+	MaxLines   int      `yaml:"max_lines"`
+	GroupBy    []string `yaml:"group_by"`
 }
 
 // Matcher contains configuration for Matcher.
 type Matcher struct {
 	Type      string     `yaml:"type"`
+	String    string     `yaml:"string"`
 	Substring string     `yaml:"substring"`
 	Prefix    string     `yaml:"prefix"`
 	Suffix    string     `yaml:"suffix"`

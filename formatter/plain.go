@@ -2,8 +2,6 @@ package formatter
 
 import (
 	"bytes"
-	"fmt"
-	"time"
 
 	"github.com/jeremija/taily/types"
 	"github.com/juju/errors"
@@ -22,7 +20,7 @@ var _ types.Formatter = Plain{}
 
 // Format implements Formatter.
 func (f Plain) Format(buf *bytes.Buffer, message types.Message) error {
-	_, err := fmt.Fprintf(buf, "%s %s %s\n", message.Timestamp.Format(time.RFC3339Nano), message.ReaderID, message.Fields)
+	_, err := buf.WriteString(message.Text() + "\n")
 
 	return errors.Trace(err)
 }

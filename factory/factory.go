@@ -107,37 +107,40 @@ func NewProcessorsFromMap(processorsMap map[string]processor.Factory, names []st
 }
 
 // NewProcessorFromConfig reads config and creates a Processor.
-func NewProcessorFromConfig(config config.Processor, actionsMap map[string]types.Action) (types.Processor, error) {
-	action, ok := actionsMap[config.Action]
+func NewProcessorFromConfig(cfg config.Processor, actionsMap map[string]types.Action) (types.Processor, error) {
+	action, ok := actionsMap[cfg.Action]
 	if !ok {
-		return nil, errors.Errorf("undefined action: %q", config.Action)
+		return nil, errors.Errorf("undefined action: %q", cfg.Action)
 	}
 
-	switch config.Type {
+	switch cfg.Type {
 	case "any":
 		return processor.NewAny(action), nil
 	case "matcher":
-		startLine, err := NewMatcherFromConfig(config.Matcher.Start)
+		startLine, err := NewMatcherFromConfig(cfg.Matcher.Start)
 		if err != nil {
 			return nil, errors.Trace(err)
 		}
 
 		var endLine types.Matcher
 
-		if config.Matcher.End != nil {
-			endLine, err = NewMatcherFromConfig(config.Matcher.End)
+		if cfg.Matcher.End != nil {
+			endLine, err = NewMatcherFromConfig(cfg.Matcher.End)
 			if err != nil {
 				return nil, errors.Trace(err)
 			}
 		}
 
 		return processor.NewMatcher(processor.MatcherParams{
-			StartLine: startLine,
-			EndLine:   endLine,
-			Action:    action,
+			StartLine:  startLine,
+			EndLine:    endLine,
+			IncludeEnd: cfg.Matcher.IncludeEnd,
+			GroupBy:    cfg.Matcher.GroupBy,
+			MaxLines:   cfg.Matcher.MaxLines,
+			Action:     action,
 		}), nil
 	default:
-		return nil, errors.Errorf("unknown processor: %q", config.Type)
+		return nil, errors.Errorf("unknown processor: %q", cfg.Type)
 	}
 }
 
@@ -160,6 +163,8 @@ func NewMatchersFromConfig(configs []*config.Matcher) ([]types.Matcher, error) {
 // used for debugging.
 func NewMatcherFromConfig(cfg *config.Matcher) (types.Matcher, error) {
 	switch cfg.Type {
+	case "string":
+		return matcher.String(cfg.String), nil
 	case "substring":
 		return matcher.Substring(cfg.Substring), nil
 	case "prefix":

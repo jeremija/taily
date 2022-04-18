@@ -54,3 +54,11 @@ func TestSuffix(t *testing.T) {
 	assert.True(t, prefix.MatchMessage(msg("attest")))
 	assert.False(t, prefix.MatchMessage(msg("something else")))
 }
+
+func TestString(t *testing.T) {
+	prefix := matcher.String("test")
+
+	assert.True(t, prefix.MatchMessage(msg("test")))
+	assert.False(t, prefix.MatchMessage(msg("attest")))
+	assert.False(t, prefix.MatchMessage(msg("something else")))
+}
