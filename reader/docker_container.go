@@ -60,12 +60,12 @@ func (d *DockerContainer) ReadLogs(ctx context.Context, params types.ReadLogsPar
 	containerID := d.params.ContainerID
 	state := params.State
 
-	inspect, err := d.params.Client.ContainerInspect(ctx, containerID)
+	containerJSON, err := d.params.Client.ContainerInspect(ctx, containerID)
 	if err != nil {
 		return errors.Trace(err)
 	}
 
-	isTTY := inspect.Config.Tty
+	isTTY := containerJSON.Config.Tty
 
 	reader, err := d.params.Client.ContainerLogs(ctx, containerID, dtypes.ContainerLogsOptions{
 		Since:      formatDockerSince(state.Timestamp),
@@ -107,6 +107,7 @@ func (d *DockerContainer) ReadLogs(ctx context.Context, params types.ReadLogsPar
 
 	go func() {
 		p := ScanDockerContainerLogsParams{
+			Container:      containerJSON,
 			WatcherID:      readerID,
 			ContainerID:    containerID,
 			Source:         types.SourceStdout,
@@ -119,6 +120,7 @@ func (d *DockerContainer) ReadLogs(ctx context.Context, params types.ReadLogsPar
 
 	go func() {
 		p := ScanDockerContainerLogsParams{
+			Container:      containerJSON,
 			WatcherID:      readerID,
 			ContainerID:    containerID,
 			Source:         types.SourceStderr,
@@ -148,6 +150,7 @@ type ScanDockerContainerLogsParams struct {
 	Source         types.Source
 	ReadLogsParams types.ReadLogsParams
 	Reader         io.Reader
+	Container      dtypes.ContainerJSON
 }
 
 func scanDockerContainerLogs(ctx context.Context, params ScanDockerContainerLogsParams) error {
@@ -172,7 +175,8 @@ func scanDockerContainerLogs(ctx context.Context, params ScanDockerContainerLogs
 		}
 
 		message := types.NewMessage(timestamp.UTC(), params.WatcherID, split[1], types.Fields{
-			"container_id": params.ContainerID,
+			"container_id":   params.ContainerID,
+			"container_name": params.Container.Name,
 		})
 		message.Source = params.Source
 

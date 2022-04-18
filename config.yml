@@ -25,6 +25,30 @@ actions:
   action_log:
     type: log
     log:
+      format:
+        type: plain
+  action_notify:
+    type: notify
+    notify:
+      title_format:
+        type: template
+        template:
+          format: 'Service {SYSLOG_IDENTIFIER} on {_HOSTNAME} panicked at {$timestamp}'
+      body_format:
+        type: plain
+      max_title_size: 150
+      max_body_size: 2048
+      services:
+        - type: 'telegram'
+          telegram:
+            token: '' # Telegram Token
+            receivers:
+              - -100 # Telegram chat ID
+
+actions:
+  action_log:
+    type: log
+    log:
       format: plain
 persister:
   type: file

@@ -81,12 +81,26 @@ type Action struct {
 	Notify ActionNotify `yaml:"notify"`
 }
 
+type Format struct {
+	Type     string   `yaml:"type"`
+	Template Template `yaml:"template"`
+}
+
+type Template struct {
+	Format     string `yaml:"format"`
+	OpenTag    rune   `yaml:"open_tag"`
+	CloseTag   rune   `yaml:"close_tag"`
+	OpenQuote  rune   `yaml:"open_quote"`
+	CloseQuote rune   `yaml:"close_quote"`
+}
+
 type ActionLog struct {
-	Format string `yaml:"format"`
+	Format Format `yaml:"format"`
 }
 
 type ActionNotify struct {
-	Format       string          `yaml:"format"`
+	TitleFormat  Format          `yaml:"title_format"`
+	BodyFormat   Format          `yaml:"body_format"`
 	Services     []NotifyService `yaml:"services"`
 	MaxTitleSize int             `yaml:"max_title_size"`
 	MaxBodySize  int             `yaml:"max_body_size"`

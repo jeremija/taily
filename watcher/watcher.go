@@ -99,7 +99,8 @@ func (w *Watcher) persistState(state types.State) {
 
 	readerID := w.params.Reader.ReaderID()
 	logger := w.params.Logger.WithCtx(log.Ctx{
-		"state": state.String(),
+		"reader_id": readerID,
+		"state":     state.String(),
 	})
 
 	// TODO perhaps it would be wiser to call SaveState only after we've
@@ -134,7 +135,8 @@ func (w *Watcher) Watch(ctx context.Context, ch chan<- types.Message) (err error
 	}
 
 	logger.Info("Loaded state", log.Ctx{
-		"state": state.String(),
+		"reader_id": readerID,
+		"state":     state.String(),
 	})
 
 	// Persist state at the end, regardless if we encountered an error or not.

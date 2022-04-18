@@ -15,11 +15,12 @@ type Notify struct {
 }
 
 type NotifyParams struct {
-	Logger       log.Logger
-	Formatter    types.Formatter
-	Notifier     notify.Notifier
-	MaxTitleSize int
-	MaxBodySize  int
+	Logger         log.Logger
+	TitleFormatter types.Formatter
+	BodyFormatter  types.Formatter
+	Notifier       notify.Notifier
+	MaxTitleSize   int
+	MaxBodySize    int
 }
 
 func NewNotify(params NotifyParams) *Notify {
@@ -39,11 +40,18 @@ func (n *Notify) PerformAction(ctx context.Context, messages []types.Message) er
 	buffer := n.pool.Get()
 	defer n.pool.Put(buffer)
 
-	if err := formatMessage(n.params.Formatter, messages, buffer); err != nil {
+	titleBuffer := n.pool.Get()
+	defer n.pool.Put(titleBuffer)
+
+	if err := n.params.TitleFormatter.Format(titleBuffer, messages[0]); err != nil {
 		return errors.Trace(err)
 	}
 
-	title := messages[0].Text()
+	if err := formatMessage(n.params.BodyFormatter, messages, buffer); err != nil {
+		return errors.Trace(err)
+	}
+
+	title := titleBuffer.String()
 	body := buffer.String()
 
 	title = limitSize(title, n.params.MaxTitleSize)

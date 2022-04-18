@@ -47,14 +47,28 @@ func NewAction(logger log.Logger, cfg config.Action) (types.Action, error) {
 	}
 }
 
-func NewFormatter(format string) (types.Formatter, error) {
-	switch format {
+func NewFormatter(cfg config.Format) (types.Formatter, error) {
+	switch cfg.Type {
 	case "plain":
 		return formatter.NewPlain(), nil
 	case "json":
 		return formatter.NewJSON(), nil
+	case "template":
+		var opts []formatter.TemplateOpt
+
+		if cfg.Template.OpenTag > 0 || cfg.Template.CloseTag > 0 {
+			opts = append(opts, formatter.WithQuotes(cfg.Template.OpenTag, cfg.Template.CloseTag))
+		}
+
+		if cfg.Template.OpenQuote > 0 || cfg.Template.CloseQuote > 0 {
+			opts = append(opts, formatter.WithQuotes(cfg.Template.OpenQuote, cfg.Template.CloseQuote))
+		}
+
+		t, err := formatter.NewTemplate(cfg.Template.Format, opts...)
+
+		return t, errors.Trace(err)
 	default:
-		return nil, errors.Errorf("unknown format: %q", format)
+		return nil, errors.Errorf("unknown format: %q", cfg.Type)
 	}
 }
 
@@ -68,7 +82,12 @@ func NewActionLog(cfg config.ActionLog) (*action.Log, error) {
 }
 
 func NewActionNotify(logger log.Logger, cfg config.ActionNotify) (*action.Notify, error) {
-	f, err := NewFormatter(cfg.Format)
+	titleFormatter, err := NewFormatter(cfg.TitleFormat)
+	if err != nil {
+		return nil, errors.Trace(err)
+	}
+
+	bodyFormatter, err := NewFormatter(cfg.BodyFormat)
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
@@ -79,11 +98,12 @@ func NewActionNotify(logger log.Logger, cfg config.ActionNotify) (*action.Notify
 	}
 
 	return action.NewNotify(action.NotifyParams{
-		Logger:       logger,
-		Formatter:    f,
-		Notifier:     notifier,
-		MaxTitleSize: cfg.MaxTitleSize,
-		MaxBodySize:  cfg.MaxBodySize,
+		Logger:         logger,
+		TitleFormatter: titleFormatter,
+		BodyFormatter:  bodyFormatter,
+		Notifier:       notifier,
+		MaxTitleSize:   cfg.MaxTitleSize,
+		MaxBodySize:    cfg.MaxBodySize,
 	}), nil
 }
 

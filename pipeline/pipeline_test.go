@@ -42,11 +42,12 @@ func TestPipeline(t *testing.T) {
 				Substring: "test",
 			}),
 			Action: action.NewNotify(action.NotifyParams{
-				Logger:       logger,
-				Formatter:    formatter.NewPlain(),
-				Notifier:     notifier,
-				MaxTitleSize: 50,
-				MaxBodySize:  100,
+				Logger:         logger,
+				BodyFormatter:  formatter.NewPlain(),
+				TitleFormatter: formatter.NewPlain(),
+				Notifier:       notifier,
+				MaxTitleSize:   50,
+				MaxBodySize:    100,
 			}),
 		})
 
@@ -83,7 +84,7 @@ func TestPipeline(t *testing.T) {
 	assert.NoError(t, err)
 
 	assert.Equal(t, mock.Notification{
-		Title: "this is a test message",
+		Title: "this is a test message\n",
 		Body:  "this is a test message\n",
 	}, notification)
 
