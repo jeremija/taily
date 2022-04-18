@@ -14,6 +14,8 @@ import (
 	"github.com/peer-calls/log"
 )
 
+var GitDescribe = ""
+
 func main() {
 	if err := main2(os.Args); err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %+v", err)
@@ -31,6 +33,10 @@ func main2(argv []string) error {
 		})).
 		WithConfig(log.NewConfigFromString(os.Getenv("TAILY_LOG"))).
 		WithNamespace("taily")
+
+	logger.Info("Starting", log.Ctx{
+		"version": GitDescribe,
+	})
 
 	cfg, err := config.NewFromEnv("TAILY_CONFIG")
 	if err != nil {

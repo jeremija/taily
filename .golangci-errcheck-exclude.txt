@@ -1,0 +1,5 @@
+(github.com/peer-calls/log.Logger).Error
+(github.com/peer-calls/log.Logger).Warn
+(github.com/peer-calls/log.Logger).Info
+(github.com/peer-calls/log.Logger).Debug
+(github.com/peer-calls/log.Logger).Trace

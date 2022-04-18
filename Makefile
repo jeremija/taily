@@ -16,3 +16,6 @@ test:
 clean:
 	rm -rf bin/
 
+.PHONY: docker
+docker:
+	docker build --tag taily:latest .

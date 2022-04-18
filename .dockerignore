@@ -1,0 +1,5 @@
+bin/
+*.local.yml
+coverage/
+coverage.out
+Dockerfile

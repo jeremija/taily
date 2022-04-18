@@ -45,7 +45,7 @@ readers:
       - proc_log
     initial_state:
       timestamp: "2022-04-01T00:00:00Z"
-  - id: docker
-    type: docker
-    processors:
-      - proc_log
+  # - id: docker
+  #   type: docker
+  #   processors:
+  #     - proc_log
