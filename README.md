@@ -36,8 +36,8 @@ variables:
 
 # Support
 
-The development of Peer Calls is sponsored by [rondomoon][rondomoon]. If you'd
-like enterprise on-site support or become a sponsor, please contact
+The development of Taily is sponsored by [rondomoon][rondomoon]. If you'd like
+enterprise on-site support or become a sponsor, please contact
 [hello@rondomoon.com](mailto:hello@rondomoon.com).
 
 [rondomoon]: https://rondomoon.com
