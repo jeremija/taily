@@ -212,6 +212,10 @@ func NewMatchers(cfgs []*config.Matcher) ([]types.Matcher, error) {
 // used for debugging.
 func NewMatcher(cfg *config.Matcher) (types.Matcher, error) {
 	switch cfg.Type {
+	case "expr":
+		m, err := matcher.Compile(cfg.Expr)
+
+		return m, errors.Trace(err)
 	case "string":
 		return matcher.String(cfg.String), nil
 	case "substring":

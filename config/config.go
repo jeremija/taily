@@ -45,6 +45,7 @@ type ProcessorMatcher struct {
 // Matcher contains configuration for Matcher.
 type Matcher struct {
 	Type      string     `yaml:"type"`
+	Expr      string     `yaml:"expr"`
 	String    string     `yaml:"string"`
 	Substring string     `yaml:"substring"`
 	Prefix    string     `yaml:"prefix"`

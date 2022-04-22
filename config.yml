@@ -1,24 +1,23 @@
 ---
 matcher_golang_panic: &matcher_golang_panic
   start_line:
-    type: prefix
-    prefix: 'panic:'
+    type: expr
+    expr: '(pre "panic:")'
+  end_line:
+    type: expr
+    expr: '
+      (not
+        (or
+          (eq "")
+          (pre "goroutine ")
+          (re ".*\\.[A-Za-z0-9](.*)$")
+          (pre "        ")
+        )
+      )
+    '
   include_end: false
   group_by:
     - '_PID'
-  end_line:
-    type: not
-    not:
-      type: or
-      or:
-        - type: string
-          string: ''
-        - type: prefix
-          prefix: 'goroutine '
-        - type: regexp
-          regexp: '.*\.[A-Za-z0-9](.*)$'
-        - type: prefix
-          prefix: '        '
   max_lines: 50
 
 actions:
