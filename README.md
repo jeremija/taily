@@ -23,7 +23,7 @@ See sample config file: [config.yml](config.yml) (subject to change until v2).
 | Build   | `make` or `go build -o bin/taily cmd`                          |
 | Test    | `make test` or `go test /...`                                  |
 | Run     | `TAILY_CONFIG="$(cat config.yml)" go run ./cmd`                |
-| Run (2) | `TAILY_CONFIG="$(cat config.yml)" bin/taily`                   |
+| Run (2) | ` bin/taily -c config.yml`                                     |
 | Logs    | `TAILY_LOG='**' TAILY_CONFIG="$(cat config.yml)" bin/taily`    |
 
 The docker client can currently be configured with the default environment

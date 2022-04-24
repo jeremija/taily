@@ -12,6 +12,7 @@ import (
 	"github.com/jeremija/taily/types"
 	"github.com/juju/errors"
 	"github.com/peer-calls/log"
+	"github.com/spf13/pflag"
 )
 
 var GitDescribe = ""
@@ -27,6 +28,18 @@ func main2(argv []string) error {
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM, syscall.SIGPIPE)
 	defer cancel()
 
+	fs := pflag.NewFlagSet("taily", pflag.ExitOnError)
+
+	var args struct {
+		config string
+	}
+
+	fs.StringVarP(&args.config, "config", "c", "", "config file to use")
+
+	if err := fs.Parse(argv); err != nil {
+		return errors.Trace(err)
+	}
+
 	logger := log.New().
 		WithConfig(log.NewConfig(log.ConfigMap{
 			"**": log.LevelInfo,
@@ -38,8 +51,15 @@ func main2(argv []string) error {
 		"version": GitDescribe,
 	})
 
-	cfg, err := config.NewFromEnv("TAILY_CONFIG")
-	if err != nil {
+	var cfg config.Config
+
+	if args.config != "" {
+		if err := cfg.FromYAMLFile(args.config); err != nil {
+			return errors.Trace(err)
+		}
+	}
+
+	if err := cfg.FromYAMLEnv("TALY.CONFIG"); err != nil {
 		return errors.Trace(err)
 	}
 
@@ -49,7 +69,7 @@ func main2(argv []string) error {
 		logger.Info("Tearing down", nil)
 	}()
 
-	pipelines, err := factory.NewPipelines(logger, cfg)
+	pipelines, err := factory.NewPipelines(logger, &cfg)
 	if err != nil {
 		return errors.Trace(err)
 	}

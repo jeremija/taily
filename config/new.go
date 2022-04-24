@@ -8,41 +8,37 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// NewFromFile opens the filename and tries to decode the config YAML.
-func NewFromFile(filename string) (*Config, error) {
+// FromYAMLFile opens the file and tries to decode the config YAML.
+func (c *Config) FromYAMLFile(filename string) error {
 	f, err := os.Open(filename)
 	if err != nil {
-		return nil, errors.Trace(err)
+		return errors.Trace(err)
 	}
 
 	defer f.Close()
 
-	config, err := NewFromReader(f)
+	err = c.FromYAMLReader(f)
 
-	return config, errors.Trace(err)
+	return errors.Trace(err)
 }
 
-// NewFromReader decodes the YAML config from reader.
-func NewFromReader(reader io.Reader) (*Config, error) {
-	var config Config
+// FromYAMLReader decodes the YAML config from reader.
+func (c *Config) FromYAMLReader(reader io.Reader) error {
+	err := yaml.NewDecoder(reader).Decode(c)
 
-	err := yaml.NewDecoder(reader).Decode(&config)
-
-	return &config, errors.Trace(err)
+	return errors.Trace(err)
 }
 
-// NewFromEnv reads the YAML config from the environment variable.
-func NewFromEnv(env string) (*Config, error) {
-	config, err := NewFromString(os.Getenv(env))
+// FromYAMLEnv reads the YAML config from the environment variable.
+func (c *Config) FromYAMLEnv(env string) error {
+	err := c.FromYAMLString(os.Getenv(env))
 
-	return config, errors.Trace(err)
+	return errors.Trace(err)
 }
 
-// NewFromString reads the YAML config from a string value.
-func NewFromString(str string) (*Config, error) {
-	var config Config
+// FromYAMLString reads the YAML config from a string value.
+func (c *Config) FromYAMLString(str string) error {
+	err := yaml.Unmarshal([]byte(str), c)
 
-	err := yaml.Unmarshal([]byte(str), &config)
-
-	return &config, errors.Trace(err)
+	return errors.Trace(err)
 }
