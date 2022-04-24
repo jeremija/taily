@@ -45,7 +45,7 @@ jobs:
     - run: mkdir -p build/release
     - run: echo "git_describe=$(git describe --always --tags)" >> $GITHUB_ENV
     - run: echo $git_describe
-    - run: env GOOS=linux GOARCH=amd64 go build -ldflags "-X main.GitDescribe=$git_describe" -o build/release/taily.$GOOS.$GOARCH ./cmd/
+    - run: export GOOS=linux GOARCH=amd64; go build -ldflags "-X main.GitDescribe=$git_describe" -o build/release/taily.$GOOS.$GOARCH ./cmd/
     - name: Release
       if: startsWith(github.ref, 'refs/tags/v')
       env:
